@@ -13,6 +13,7 @@ package org.eclipse.rdf4j.query.algebra.evaluation.util;
 import javax.xml.datatype.DatatypeConstants;
 
 import org.eclipse.rdf4j.model.Literal;
+import org.eclipse.rdf4j.model.TripleTerm;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.base.CoreDatatype;
 import org.eclipse.rdf4j.model.datatypes.XMLDatatypeUtil;

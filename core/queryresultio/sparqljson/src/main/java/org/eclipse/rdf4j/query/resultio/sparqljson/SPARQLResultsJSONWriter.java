@@ -13,7 +13,7 @@ package org.eclipse.rdf4j.query.resultio.sparqljson;
 import java.io.OutputStream;
 import java.io.Writer;
 
-import org.eclipse.rdf4j.model.Triple;
+import org.eclipse.rdf4j.model.TripleTerm;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.query.QueryResultHandlerException;
 import org.eclipse.rdf4j.query.resultio.TupleQueryResultFormat;

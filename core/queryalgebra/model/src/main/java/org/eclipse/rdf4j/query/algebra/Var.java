@@ -53,6 +53,8 @@ public class Var extends AbstractQueryModelNode implements ValueExpr {
 
 	private boolean constant = false;
 
+	private boolean isBNode = false;
+
 	private int cachedHashCode = 0;
 
 	/*
@@ -108,6 +110,10 @@ public class Var extends AbstractQueryModelNode implements ValueExpr {
 	 */
 	@Deprecated(since = "5.1.5", forRemoval = true)
 	public Var(String name, Value value, boolean anonymous, boolean constant) {
+		this(name, value, anonymous, constant, false);
+	}
+
+	public Var(String name, Value value, boolean anonymous, boolean constant, boolean isBNode) {
 		this.name = name;
 		this.value = value;
 		this.anonymous = anonymous;

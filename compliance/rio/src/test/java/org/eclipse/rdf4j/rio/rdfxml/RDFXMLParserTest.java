@@ -10,6 +10,8 @@
  *******************************************************************************/
 package org.eclipse.rdf4j.rio.rdfxml;
 
+import java.io.*;
+
 import org.eclipse.rdf4j.testsuite.rio.rdfxml.RDFXMLParserTestCase;
 
 import junit.framework.Test;

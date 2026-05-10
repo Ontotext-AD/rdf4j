@@ -153,7 +153,7 @@ class UnionSailDataset implements SailDataset {
 	}
 
 	@Override
-	public CloseableIteration<? extends Triple> getTriples(Resource subj, IRI pred, Value obj)
+	public CloseableIteration<? extends TripleTerm> getTriples(Resource subj, IRI pred, Value obj)
 			throws SailException {
 
 		CloseableIteration<? extends TripleTerm> iteration1 = null;

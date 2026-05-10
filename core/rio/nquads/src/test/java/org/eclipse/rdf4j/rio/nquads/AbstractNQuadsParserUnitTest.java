@@ -258,8 +258,6 @@ public abstract class AbstractNQuadsParserUnitTest extends AbstractParserTest {
 				("<http://www.v/dat/4b2-21> " + "<http://www.w3.org/20/ica#dtend> "
 						+ "\"2010\"^^<http://www.w3.org/2001/XMLSchema#integer> " + "<http://sin.siteserv.org/def/>.")
 								.getBytes());
-		final TestRDFHandler rdfHandler = new TestRDFHandler();
-		parser.setRDFHandler(rdfHandler);
 		parser.parse(bais, "http://test.base.uri");
 		final Statement statement = statementCollector.getStatements().iterator().next();
 		assertEquals("http://www.v/dat/4b2-21", statement.getSubject().stringValue());

@@ -53,7 +53,7 @@ public class SPARQLResultsJSONWriter extends AbstractSPARQLJSONWriter implements
 
 	@Override
 	protected void writeValue(Value value) throws QueryResultHandlerException {
-		if (value instanceof Triple) {
+		if (value instanceof TripleTerm) {
 			jg.writeStartObject();
 
 			jg.writeStringProperty(AbstractSPARQLJSONParser.TYPE, SPARQLStarResultsJSONConstants.TRIPLE);
@@ -61,13 +61,13 @@ public class SPARQLResultsJSONWriter extends AbstractSPARQLJSONWriter implements
 			jg.writeObjectPropertyStart(AbstractSPARQLJSONParser.VALUE);
 
 			jg.writeName(SPARQLStarResultsJSONConstants.SUBJECT);
-			writeValue(((Triple) value).getSubject());
+			writeValue(((TripleTerm) value).getSubject());
 
 			jg.writeName(SPARQLStarResultsJSONConstants.PREDICATE);
-			writeValue(((Triple) value).getPredicate());
+			writeValue(((TripleTerm) value).getPredicate());
 
 			jg.writeName(SPARQLStarResultsJSONConstants.OBJECT);
-			writeValue(((Triple) value).getObject());
+			writeValue(((TripleTerm) value).getObject());
 
 			jg.writeEndObject();
 

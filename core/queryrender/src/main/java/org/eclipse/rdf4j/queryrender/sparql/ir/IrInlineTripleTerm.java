@@ -18,14 +18,14 @@ import org.eclipse.rdf4j.model.vocabulary.RDF;
 import org.eclipse.rdf4j.query.algebra.Var;
 
 /**
- * Inline RDF-star triple term: renders as &lt;&lt; subj pred obj &gt;&gt; inside another triple.
+ * Inline RDF triple term: renders as &lt;&lt; subj pred obj &gt;&gt; inside another triple.
  */
-public final class IrInlineTriple extends IrNode {
+public final class IrInlineTripleTerm extends IrNode {
 	private final Var subject;
 	private final Var predicate;
 	private final Var object;
 
-	public IrInlineTriple(Var subject, Var predicate, Var object) {
+	public IrInlineTripleTerm(Var subject, Var predicate, Var object) {
 		super(false);
 		this.subject = subject;
 		this.predicate = predicate;
@@ -34,10 +34,10 @@ public final class IrInlineTriple extends IrNode {
 
 	@Override
 	public void print(IrPrinter p) {
-		p.append("<<");
+		p.append("<<(");
 		p.append(" " + p.convertVarToString(subject));
 		p.append(" " + predicateText(p));
-		p.append(" " + p.convertVarToString(object) + " >>");
+		p.append(" " + p.convertVarToString(object) + " )>>");
 	}
 
 	private String predicateText(IrPrinter p) {

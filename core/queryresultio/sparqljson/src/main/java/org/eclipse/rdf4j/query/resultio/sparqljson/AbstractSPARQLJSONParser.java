@@ -364,7 +364,7 @@ public abstract class AbstractSPARQLJSONParser extends AbstractQueryResultParser
 				datatype = jp.nextStringValue();
 			} else if (VALUE.equals(fieldName)) {
 				if (jp.nextToken() == JsonToken.START_OBJECT) {
-					triple = parseTripleValue(jp, fieldName);
+					tripleTerm = parseTripleTermValue(jp, fieldName);
 					if (jp.currentToken() != JsonToken.END_OBJECT) {
 						throw new QueryResultParseException("Unexpected token: " + jp.currentName(),
 								jp.currentLocation().getLineNr(),
@@ -440,7 +440,7 @@ public abstract class AbstractSPARQLJSONParser extends AbstractQueryResultParser
 		}
 	}
 
-	protected Triple parseTripleValue(JsonParser jp, String fieldName) throws IOException {
+	protected TripleTerm parseTripleTermValue(JsonParser jp, String fieldName) throws IOException {
 		throw new QueryResultParseException("Unexpected object as value", jp.currentLocation().getLineNr(),
 				jp.currentLocation().getColumnNr());
 	}

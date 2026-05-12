@@ -2572,7 +2572,7 @@ public class TupleExprBuilder extends AbstractASTVisitor {
 			Set<Var> boundVars = collectBoundVars(graphPattern.getRequiredTEs());
 			Set<Var> tripleTermVars = getTripleRefVars(tripleRef);
 
-			if (boundVars.containsAll(tripleTermVars)) {
+			if (!tripleTermVars.isEmpty() && boundVars.containsAll(tripleTermVars)) {
 				// All vars bound - expand to ValueExprTripleRef
 				ve = castToValueExpr(child0);
 			} else {

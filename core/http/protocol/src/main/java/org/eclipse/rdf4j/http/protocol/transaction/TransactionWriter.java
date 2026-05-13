@@ -238,28 +238,18 @@ public class TransactionWriter {
 	}
 
 	protected void serialize(Value value, XMLWriter xmlWriter) throws IOException {
-		if (value instanceof Resource) {
-			serialize((Resource) value, xmlWriter);
-		} else if (value instanceof Literal) {
+		if (value instanceof Literal) {
 			serialize((Literal) value, xmlWriter);
+		} else if (value instanceof IRI) {
+			serialize((IRI) value, xmlWriter);
+		} else if (value instanceof BNode) {
+			serialize((BNode) value, xmlWriter);
+		} else if (value instanceof TripleTerm) {
+			serialize((TripleTerm) value, xmlWriter);
 		} else if (value == null) {
 			serializeNull(xmlWriter);
 		} else {
 			throw new IllegalArgumentException("Unknown value type: " + value.getClass().toString());
-		}
-	}
-
-	protected void serialize(Resource resource, XMLWriter xmlWriter) throws IOException {
-		if (resource instanceof IRI) {
-			serialize((IRI) resource, xmlWriter);
-		} else if (resource instanceof BNode) {
-			serialize((BNode) resource, xmlWriter);
-		} else if (resource instanceof TripleTerm) {
-			serialize((TripleTerm) resource, xmlWriter);
-		} else if (resource == null) {
-			serializeNull(xmlWriter);
-		} else {
-			throw new IllegalArgumentException("Unknown resource type: " + resource.getClass().toString());
 		}
 	}
 

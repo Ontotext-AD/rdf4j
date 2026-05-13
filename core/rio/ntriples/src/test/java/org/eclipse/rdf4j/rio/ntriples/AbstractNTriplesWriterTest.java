@@ -31,6 +31,8 @@ import org.junit.jupiter.api.Test;
  */
 public abstract class AbstractNTriplesWriterTest extends RDFWriterTest {
 
+	private static final String VERSION = "VERSION \"1.2\"\n";
+
 	protected AbstractNTriplesWriterTest(RDFWriterFactory writerF, RDFParserFactory parserF) {
 		super(writerF, parserF);
 	}
@@ -59,7 +61,7 @@ public abstract class AbstractNTriplesWriterTest extends RDFWriterTest {
 		StringWriter stringWriter = new StringWriter();
 		Rio.write(model, stringWriter, RDFFormat.NTRIPLES);
 
-		assertEquals(
+		assertEquals(VERSION +
 				"<http://www.example.com/s> <http://www.example.com/p> <<( <http://www.example.com/s2> <http://www.example.com/p2> <http://www.example.com/o> )>> .\n",
 				stringWriter.toString());
 	}
@@ -75,9 +77,8 @@ public abstract class AbstractNTriplesWriterTest extends RDFWriterTest {
 
 		StringWriter stringWriter = new StringWriter();
 		Rio.write(model, stringWriter, RDFFormat.NTRIPLES);
-
 		assertEquals(
-				"<http://www.example.com/s> <http://www.example.com/p> <<( <http://www.example.com/s2> <http://www.example.com/p2> <<( <http://www.example.com/s3> <http://www.example.com/p3> <http://www.example.com/o> )>> )>> .\n",
+				VERSION + "<http://www.example.com/s> <http://www.example.com/p> <<( <http://www.example.com/s2> <http://www.example.com/p2> <<( <http://www.example.com/s3> <http://www.example.com/p3> <http://www.example.com/o> )>> )>> .\n",
 				stringWriter.toString());
 	}
 
@@ -94,7 +95,7 @@ public abstract class AbstractNTriplesWriterTest extends RDFWriterTest {
 		Rio.write(model, stringWriter, RDFFormat.NTRIPLES);
 
 		assertEquals(
-				"_:b <http://www.example.com/p> <<( <http://www.example.com/s> <http://www.example.com/p2> <<( _:b2 <http://www.example.com/p3> \"9\"^^<http://www.w3.org/2001/XMLSchema#int> )>> )>> .\n",
+				VERSION + "_:b <http://www.example.com/p> <<( <http://www.example.com/s> <http://www.example.com/p2> <<( _:b2 <http://www.example.com/p3> \"9\"^^<http://www.w3.org/2001/XMLSchema#int> )>> )>> .\n",
 				stringWriter.toString());
 	}
 }

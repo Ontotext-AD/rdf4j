@@ -10,8 +10,7 @@
  *******************************************************************************/
 package org.eclipse.rdf4j.testsuite.rio;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
@@ -22,6 +21,7 @@ import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.RDFParseException;
 import org.eclipse.rdf4j.rio.RDFParser;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.slf4j.Logger;
@@ -35,15 +35,15 @@ public abstract class AbstractParserTestSuite {
 	 * Constants *
 	 *-----------*/
 
-	private final String testFileBasePath;
+	protected final String testFileBasePath;
 
 	private final String testManifestURL;
 
 	private final String testManifestURIBase;
 
-	private final String testBaseURL;
+	protected final String testBaseURL;
 
-	private final RDFFormat format;
+	protected final RDFFormat format;
 
 	private final String formatString;
 
@@ -86,7 +86,7 @@ public abstract class AbstractParserTestSuite {
 		return suite;
 	}
 
-	private void parseSubManifests(RepositoryConnection con) throws IOException {
+	protected void parseSubManifests(RepositoryConnection con) throws IOException {
 		final String manifestQuery = "PREFIX mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> "
 				+ "SELECT DISTINCT ?manifestFile "
 				+ "WHERE { [] mf:include [ rdf:rest*/rdf:first ?manifestFile ] . }   ";
@@ -95,17 +95,29 @@ public abstract class AbstractParserTestSuite {
 
 		for (final BindingSet bindingSet : queryResult) {
 			final String subManifestFile = bindingSet.getValue("manifestFile").stringValue();
-
-			String subManifestFilePath = "";
-			if (subManifestFile.startsWith(testBaseURL)) {
-				final String relativePath = subManifestFile.substring(testBaseURL.length());
-				subManifestFilePath = testFileBasePath + relativePath;
+			final String subManifestFilePath = computeSubManifestFilePath(subManifestFile);
+			try {
+				final InputStream inputStream = this.getClass().getResourceAsStream(subManifestFilePath);
+				con.add(inputStream, subManifestFile, RDFFormat.TURTLE);
+			} catch (RDFParseException e) {
+				// We enter here because RDF 1.2 conformance tests include a reference to RDF 1.1 tests via a
+				// relative path, for example: '<../../rdf11/rdf-turtle/manifest.ttl>', in the manifest files.
+				// We already execute those as a separate test suit, so we can skip adding them to this one.
+                logger.info("Skipping sub manifest file: {}", bindingSet.getValue("manifestFile").stringValue());
 			}
-
-			final InputStream inputStream = this.getClass().getResourceAsStream(subManifestFilePath);
-
-			con.add(inputStream, subManifestFile, RDFFormat.TURTLE);
 		}
+	}
+
+	/**
+	 * Hook method to allow subclasses to customize the path. By default, only the normal testBaseURL logic is applied.
+	 */
+	protected String computeSubManifestFilePath(String subManifestFile) {
+		String subManifestFilePath = "";
+		if (subManifestFile.startsWith(testBaseURL)) {
+			final String relativePath = subManifestFile.substring(testBaseURL.length());
+			subManifestFilePath = testFileBasePath + relativePath;
+		}
+		return subManifestFilePath;
 	}
 
 	private void parsePositiveSyntaxTests(final TestSuite suite, final RepositoryConnection con) {

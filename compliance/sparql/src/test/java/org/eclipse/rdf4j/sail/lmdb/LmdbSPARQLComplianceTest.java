@@ -20,7 +20,8 @@ import org.junit.jupiter.api.Disabled;
 /**
  * Test additional SPARQL functionality on LMDB store.
  */
-@Disabled("Fails with RDF 1.2 changes")
+// FIXME RDF1.2
+@Disabled("Needs to be fixed")
 public class LmdbSPARQLComplianceTest extends RepositorySPARQLComplianceTestSuite {
 
 	public LmdbSPARQLComplianceTest() {

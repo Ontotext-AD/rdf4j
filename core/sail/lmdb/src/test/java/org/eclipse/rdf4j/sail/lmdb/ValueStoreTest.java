@@ -87,7 +87,8 @@ public class ValueStoreTest {
 	}
 
 	@Test
-	@Disabled("Seems to fail not related to RDF 1.2. Needs check.")
+	// FIXME RDF1.2
+	@Disabled("Needs to be fixed")
 	public void testDisableInlineLiteralsUsesStoredIds() throws Exception {
 		valueStore.close();
 

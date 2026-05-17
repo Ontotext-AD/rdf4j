@@ -68,7 +68,8 @@ public class SpinParserTest {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("testData")
-	@Disabled("Needs to check why it fails")
+	// FIXME RDF1.2
+	@Disabled("Needs to be fixed")
 	public void testSpinParser(String testName, URL testURL) throws IOException, RDF4JException {
 		StatementCollector expected = new StatementCollector();
 		RDFParser parser = Rio.createParser(RDFFormat.TURTLE);

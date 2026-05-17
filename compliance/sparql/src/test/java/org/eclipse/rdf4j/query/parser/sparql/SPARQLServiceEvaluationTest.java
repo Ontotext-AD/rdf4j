@@ -70,8 +70,10 @@ import org.eclipse.rdf4j.rio.RDFParser;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
-import org.junit.*;
-import org.junit.jupiter.api.Disabled;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +86,6 @@ import org.slf4j.LoggerFactory;
  * @author Jeen Broekstra
  * @author Andreas Schwarte
  */
-@Ignore("Fails. Needs to check if related to RDF 1.2")
 public class SPARQLServiceEvaluationTest {
 
 	static final Logger logger = LoggerFactory.getLogger(SPARQLServiceEvaluationTest.class);

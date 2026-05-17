@@ -31,7 +31,6 @@ import org.junit.jupiter.api.Test;
 /**
  * @author jeen
  */
-@Disabled("Fails. Needs to check if related to RDF 1.2")
 public class HTTPSparqlUpdateTest extends SPARQLUpdateTest {
 
 	private static SPARQLEmbeddedServer server;

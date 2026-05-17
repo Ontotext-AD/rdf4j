@@ -50,13 +50,11 @@ import org.eclipse.rdf4j.repository.sail.config.SailRepositoryConfig;
 import org.eclipse.rdf4j.sail.memory.config.MemoryStoreConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 @EnabledOnOs({ OS.LINUX, OS.MAC })
-@Disabled("Disable until investigate why fail")
 class ServerBootSignalIT {
 
 	private static final int MIN_TEST_PORT = 32768;

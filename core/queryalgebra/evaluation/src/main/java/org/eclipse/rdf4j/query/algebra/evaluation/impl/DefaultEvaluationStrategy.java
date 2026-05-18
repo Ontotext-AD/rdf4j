@@ -917,6 +917,14 @@ public class DefaultEvaluationStrategy implements EvaluationStrategy, FederatedS
 			prepared = prepare((Label) expr, context);
 		} else if (expr instanceof Lang) {
 			prepared = prepare((Lang) expr, context);
+		} else if (expr instanceof LangDir) {
+			prepared = prepare((LangDir) expr, context);
+		} else if (expr instanceof StrLangDir) {
+			prepared = prepare((StrLangDir) expr, context);
+		} else if (expr instanceof HasLang) {
+			prepared = prepare((HasLang) expr, context);
+		} else if (expr instanceof HasLangDir) {
+			prepared = prepare((HasLangDir) expr, context);
 		} else if (expr instanceof LangMatches) {
 			prepared = prepare((LangMatches) expr, context);
 		} else if (expr instanceof Datatype) {
@@ -927,6 +935,8 @@ public class DefaultEvaluationStrategy implements EvaluationStrategy, FederatedS
 			prepared = prepare((LocalName) expr, context);
 		} else if (expr instanceof IsResource) {
 			prepared = prepare((IsResource) expr, context);
+		} else if (expr instanceof IsTriple) {
+			prepared = prepare((IsTriple) expr, context);
 		} else if (expr instanceof IsURI) {
 			prepared = prepare((IsURI) expr, context);
 		} else if (expr instanceof IsBNode) {
@@ -969,6 +979,8 @@ public class DefaultEvaluationStrategy implements EvaluationStrategy, FederatedS
 			prepared = prepare((ListMemberOperator) expr, context);
 		} else if (expr instanceof ValueExprTripleRef) {
 			prepared = prepare((ValueExprTripleRef) expr, context);
+		} else if (expr instanceof TripleComponent) {
+			prepared = prepare((TripleComponent) expr, context);
 		} else if (expr == null) {
 			throw new IllegalArgumentException("expr must not be null");
 		} else {

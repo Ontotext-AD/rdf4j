@@ -125,6 +125,9 @@ public abstract class SPARQLQueryComplianceTest extends SPARQLComplianceTest {
 	}
 
 	public Collection<DynamicTest> getTestData(String manifestResource, boolean approvedOnly) {
+		// TODO: remove:
+		approvedOnly = false;
+
 		List<DynamicTest> tests = new ArrayList<>();
 
 		Deque<String> manifests = new ArrayDeque<>();

@@ -18,10 +18,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.eclipse.rdf4j.common.io.FileUtil;
 import org.eclipse.rdf4j.common.text.StringUtil;
@@ -166,7 +168,14 @@ public abstract class SPARQLComplianceTest {
 
 				URL graphURL = new URL(graphURI.toString());
 				try (InputStream in = graphURL.openStream()) {
-					rdfParser.parse(in, graphURI.toString());
+
+					String content = new String(in.readAllBytes());
+					String prefixes = extractPrefixes(content);
+					String triples = extractTriples(content);
+
+					String query = prefixes + "\nINSERT {\n" + triples + "\n} WHERE {}";
+					con.prepareUpdate(query).execute();
+					// rdfParser.parse(in, graphURI.toString());
 				}
 
 				con.commit();
@@ -178,6 +187,24 @@ public abstract class SPARQLComplianceTest {
 			} finally {
 				con.close();
 			}
+		}
+
+		private String extractTriples(String content) {
+			return Arrays.stream(content.split("\n"))
+					.filter(line -> {
+						String trimmed = line.trim().toUpperCase();
+						return !trimmed.startsWith("PREFIX") &&
+								!trimmed.isEmpty() &&
+								!trimmed.startsWith("@PREFIX");
+					})
+					.collect(Collectors.joining("\n"));
+
+		}
+
+		private String extractPrefixes(String content) {
+			return Arrays.stream(content.split("\n"))
+					.filter(line -> line.trim().toUpperCase().startsWith("PREFIX"))
+					.collect(Collectors.joining("\n"));
 		}
 
 		protected void compareGraphs(Iterable<Statement> queryResult, Iterable<Statement> expectedResult)

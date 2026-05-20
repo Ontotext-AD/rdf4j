@@ -178,8 +178,8 @@ public class QueryEvaluationUtil {
 		if (l.isTripleTerm() && r.isTripleTerm()) {
 			TripleTerm leftTerm = (TripleTerm) l;
 			TripleTerm rightTerm = (TripleTerm) r;
-			return compareNE(leftTerm.getSubject(), rightTerm.getSubject(), strict) &&
-					compareNE(leftTerm.getPredicate(), rightTerm.getPredicate(), strict) &&
+			return compareNE(leftTerm.getSubject(), rightTerm.getSubject(), strict) ||
+					compareNE(leftTerm.getPredicate(), rightTerm.getPredicate(), strict) ||
 					compareNE(leftTerm.getObject(), rightTerm.getObject(), strict);
 		}
 		return !l.equals(r);

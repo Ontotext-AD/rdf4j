@@ -18,12 +18,7 @@ import java.nio.file.Files;
 
 import org.eclipse.rdf4j.common.io.FileUtil;
 import org.eclipse.rdf4j.common.iteration.CloseableIteration;
-import org.eclipse.rdf4j.model.BNode;
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.TripleTerm;
-import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.*;
 import org.eclipse.rdf4j.model.vocabulary.RDF;
 import org.eclipse.rdf4j.query.BindingSet;
 import org.eclipse.rdf4j.query.QueryLanguage;
@@ -166,6 +161,78 @@ public class StoreSerializationTest {
 		CloseableIteration<? extends Statement> iter = con.getStatements(foo, RDF.VALUE, null, false);
 		assertTrue(iter.hasNext());
 		iter.next();
+		iter.close();
+
+		con.close();
+		store.shutDown();
+	}
+
+	@Test
+	public void testDirectionalLiterals() {
+		MemoryStore store = new MemoryStore(dataDir);
+		store.init();
+
+		ValueFactory factory = store.getValueFactory();
+		IRI foo = factory.createIRI("http://www.foo.example/foo");
+
+		Literal directionalLiteral = factory.createLiteral("bangaranga", "bg", Literal.BaseDirection.LTR);
+
+		SailConnection con = store.getConnection();
+		con.begin();
+		con.addStatement(foo, RDF.VALUE, directionalLiteral);
+		con.commit();
+
+		con.close();
+		store.shutDown();
+
+		store = new MemoryStore(dataDir);
+		store.init();
+
+		con = store.getConnection();
+
+		CloseableIteration<? extends Statement> iter = con.getStatements(foo, RDF.VALUE, null, false);
+		assertTrue(iter.hasNext());
+		Statement st = iter.next();
+		Value literal = st.getObject();
+		assertEquals(literal instanceof Literal, true);
+		assertTrue(((Literal) literal).getLanguage().get().equals("bg"));
+		assertTrue(((Literal) literal).getBaseDirection().equals(Literal.BaseDirection.LTR));
+		iter.close();
+
+		con.close();
+		store.shutDown();
+	}
+
+	@Test
+	public void testLanguageLiterals() {
+		MemoryStore store = new MemoryStore(dataDir);
+		store.init();
+
+		ValueFactory factory = store.getValueFactory();
+		IRI foo = factory.createIRI("http://www.foo.example/foo");
+
+		Literal directionalLiteral = factory.createLiteral("bangaranga", "bg");
+
+		SailConnection con = store.getConnection();
+		con.begin();
+		con.addStatement(foo, RDF.VALUE, directionalLiteral);
+		con.commit();
+
+		con.close();
+		store.shutDown();
+
+		store = new MemoryStore(dataDir);
+		store.init();
+
+		con = store.getConnection();
+
+		CloseableIteration<? extends Statement> iter = con.getStatements(foo, RDF.VALUE, null, false);
+		assertTrue(iter.hasNext());
+		Statement st = iter.next();
+		Value literal = st.getObject();
+		assertEquals(literal instanceof Literal, true);
+		assertTrue(((Literal) literal).getLanguage().get().equals("bg"));
+		assertTrue(((Literal) literal).getBaseDirection().equals(Literal.BaseDirection.NONE));
 		iter.close();
 
 		con.close();

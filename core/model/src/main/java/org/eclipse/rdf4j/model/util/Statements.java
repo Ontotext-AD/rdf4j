@@ -130,7 +130,7 @@ public class Statements {
 	 * @param statement a statement to convert to an RDF 1.2 triple
 	 * @return an {@link TripleTerm RDF 1.2 triple} with the same subject, predicate and object as the input statement.
 	 * @since 3.4.0
-	 * @deprecated Use {@link Values#triple(Statement)} instead
+	 * @deprecated Use {@link Values#tripleTerm(Statement)} instead
 	 */
 	@Deprecated(since = "3.5.0")
 	public static TripleTerm toTriple(Statement statement) {
@@ -144,7 +144,7 @@ public class Statements {
 	 * @param statement a statement to convert to an RDF 1.2 triple
 	 * @return an {@link TripleTerm RDF 1.2 triple} with the same subject, predicate and object as the input statement.
 	 * @since 3.4.0
-	 * @deprecated Use {@link Values#triple(ValueFactory, Statement)} instead
+	 * @deprecated Use {@link Values#tripleTerm(ValueFactory, Statement)} instead
 	 */
 	@Deprecated(since = "3.5.0")
 	public static TripleTerm toTriple(ValueFactory vf, Statement statement) {

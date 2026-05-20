@@ -259,7 +259,8 @@ public abstract class TripleTermSupportTest {
 	@Test
 	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
 	public void testSparqlStarInObjectPosition() {
-		testCon.add(Values.bnode(), FOAF.KNOWS, Values.triple(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
+		testCon.add(Values.bnode(), FOAF.KNOWS,
+				Values.tripleTerm(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
 		TupleQuery tupleQuery = testCon.prepareTupleQuery(
 				"PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
 						"SELECT * WHERE { ?a ?b <<?s foaf:name ?o>>. }");

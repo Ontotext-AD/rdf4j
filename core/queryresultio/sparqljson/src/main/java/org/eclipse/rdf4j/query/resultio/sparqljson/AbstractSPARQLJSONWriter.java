@@ -10,6 +10,8 @@
  *******************************************************************************/
 package org.eclipse.rdf4j.query.resultio.sparqljson;
 
+import static org.eclipse.rdf4j.query.resultio.sparqljson.AbstractSPARQLJSONParser.ITS_DIR;
+
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
@@ -46,8 +48,6 @@ import tools.jackson.core.json.JsonFactory;
 import tools.jackson.core.util.DefaultIndenter;
 import tools.jackson.core.util.DefaultPrettyPrinter;
 import tools.jackson.core.util.DefaultPrettyPrinter.Indenter;
-
-import static org.eclipse.rdf4j.query.resultio.sparqljson.AbstractSPARQLJSONParser.ITS_DIR;
 
 /**
  * An abstract class to implement the base functionality for both SPARQLBooleanJSONWriter and SPARQLResultsJSONWriter.

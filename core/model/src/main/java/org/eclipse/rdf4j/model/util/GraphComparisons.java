@@ -11,7 +11,7 @@
 package org.eclipse.rdf4j.model.util;
 
 import static org.eclipse.rdf4j.model.util.Values.bnode;
-import static org.eclipse.rdf4j.model.util.Values.triple;
+import static org.eclipse.rdf4j.model.util.Values.tripleTerm;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -216,7 +216,7 @@ class GraphComparisons {
 				blankNodes.add((BNode) st.getContext());
 			}
 
-			TripleTerm t = triple(st);
+			TripleTerm t = Values.tripleTerm(st);
 			while (t.getObject().isTripleTerm()) {
 				t = (TripleTerm) t.getObject();
 
@@ -334,7 +334,7 @@ class GraphComparisons {
 					object = createCanonicalBNode((BNode) st.getObject(), hash);
 				} else if (st.getObject().isTripleTerm()) {
 					TripleTerm tripleTerm = (TripleTerm) st.getObject();
-					object = triple(
+					object = Values.tripleTerm(
 							tripleTerm.getSubject().isBNode()
 									? createCanonicalBNode((BNode) tripleTerm.getSubject(), hash)
 									: tripleTerm.getSubject(),

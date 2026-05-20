@@ -609,7 +609,7 @@ public class Values {
 	/* triple factory methods */
 
 	/**
-	 * Creates a new {@link Triple embedded triple} with the supplied subject, predicate, and object.
+	 * Creates a new {@link TripleTerm embedded triple} with the supplied subject, predicate, and object.
 	 *
 	 * @param subject   the Triple subject
 	 * @param predicate the Triple predicate
@@ -617,8 +617,8 @@ public class Values {
 	 * @return a {@link TripleTerm} with the supplied subject, predicate, and object.
 	 * @throws NullPointerException if any of the supplied input parameters is <code>null</code>.
 	 */
-	public static TripleTerm triple(Resource subject, IRI predicate, Value object) {
-		return triple(VALUE_FACTORY, subject, predicate, object);
+	public static TripleTerm tripleTerm(Resource subject, IRI predicate, Value object) {
+		return tripleTerm(VALUE_FACTORY, subject, predicate, object);
 	}
 
 	/**
@@ -631,7 +631,7 @@ public class Values {
 	 * @return a {@link TripleTerm} with the supplied subject, predicate, and object.
 	 * @throws NullPointerException if any of the supplied input parameters is <code>null</code>.
 	 */
-	public static TripleTerm triple(ValueFactory vf, Resource subject, IRI predicate, Value object) {
+	public static TripleTerm tripleTerm(ValueFactory vf, Resource subject, IRI predicate, Value object) {
 		return vf.createTripleTerm(
 				Objects.requireNonNull(subject, "subject may not be null"),
 				Objects.requireNonNull(predicate, "predicate may not be null"),
@@ -647,7 +647,7 @@ public class Values {
 	 * @return a {@link TripleTerm} with the same subject, predicate, and object as the supplied Statement.
 	 * @throws NullPointerException if statement is <code>null</code>.
 	 */
-	public static TripleTerm triple(Statement statement) {
+	public static TripleTerm tripleTerm(Statement statement) {
 		Objects.requireNonNull(statement, "statement may not be null");
 		return VALUE_FACTORY.createTripleTerm(statement.getSubject(), statement.getPredicate(), statement.getObject());
 	}
@@ -661,7 +661,7 @@ public class Values {
 	 * @return a {@link TripleTerm} with the same subject, predicate, and object as the supplied Statement.
 	 * @throws NullPointerException if any of the supplied input parameters is <code>null</code>.
 	 */
-	public static TripleTerm triple(ValueFactory vf, Statement statement) {
+	public static TripleTerm tripleTerm(ValueFactory vf, Statement statement) {
 		Objects.requireNonNull(statement, "statement may not be null");
 		return vf.createTripleTerm(statement.getSubject(), statement.getPredicate(), statement.getObject());
 	}

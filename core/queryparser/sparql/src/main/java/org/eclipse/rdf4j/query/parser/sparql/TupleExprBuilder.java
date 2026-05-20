@@ -2538,7 +2538,7 @@ public class TupleExprBuilder extends AbstractASTVisitor {
 
 	@Override
 	public Var visit(ASTVar node, Object data) throws VisitorException {
-		return Var.of(node.getName(), node.isAnonymous());
+		return Var.of(node.getName(), node.isAnonymous(), node.isBNode());
 	}
 
 	@Override

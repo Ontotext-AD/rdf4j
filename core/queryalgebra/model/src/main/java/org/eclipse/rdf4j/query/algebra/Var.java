@@ -103,6 +103,10 @@ public class Var extends AbstractQueryModelNode implements ValueExpr {
 		return Holder.PROVIDER.newVar(name, value, anonymous, constant, isBNode);
 	}
 
+	public static Var of(String name, boolean anonymous, boolean isBNode) {
+		return Holder.PROVIDER.newVar(name, null, anonymous, false, isBNode);
+	}
+
 	/*
 	 * ========================= Constructors (existing API) =========================
 	 */

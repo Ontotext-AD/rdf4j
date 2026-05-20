@@ -263,22 +263,5 @@ public class BlankNodeVarProcessor extends AbstractASTVisitor {
 
 			return varNode;
 		}
-
-		/**
-		 * Returns true if the given node is nested inside an INSERT or DELETE template (i.e. an ASTModify /
-		 * ASTInsertClause / ASTDeleteClause), rather than a WHERE clause.
-		 */
-		private boolean isInsideUpdateTemplate(SimpleNode node) {
-			SimpleNode parent = (SimpleNode) node.jjtGetParent();
-			while (parent != null) {
-				// ASTInsertClause and ASTDeleteClause mark template bodies
-				if (parent instanceof org.eclipse.rdf4j.query.parser.sparql.ast.ASTInsertClause
-						|| parent instanceof org.eclipse.rdf4j.query.parser.sparql.ast.ASTDeleteClause) {
-					return true;
-				}
-				parent = (SimpleNode) parent.jjtGetParent();
-			}
-			return false;
-		}
 	}
 }

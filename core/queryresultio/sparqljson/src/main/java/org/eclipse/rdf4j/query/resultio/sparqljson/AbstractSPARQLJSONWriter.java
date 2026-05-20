@@ -47,6 +47,8 @@ import tools.jackson.core.util.DefaultIndenter;
 import tools.jackson.core.util.DefaultPrettyPrinter;
 import tools.jackson.core.util.DefaultPrettyPrinter.Indenter;
 
+import static org.eclipse.rdf4j.query.resultio.sparqljson.AbstractSPARQLJSONParser.ITS_DIR;
+
 /**
  * An abstract class to implement the base functionality for both SPARQLBooleanJSONWriter and SPARQLResultsJSONWriter.
  *
@@ -302,6 +304,9 @@ abstract class AbstractSPARQLJSONWriter extends AbstractQueryResultWriter implem
 
 			if (Literals.isLanguageLiteral(lit)) {
 				jg.writeStringProperty("xml:lang", lit.getLanguage().orElse(null));
+				if (lit.getBaseDirection() != Literal.BaseDirection.NONE) {
+					jg.writeStringProperty(ITS_DIR, lit.getBaseDirection().toString());
+				}
 			} else {
 				IRI datatype = lit.getDatatype();
 				boolean ignoreDatatype = datatype.equals(XSD.STRING) && xsdStringToPlainLiteral();

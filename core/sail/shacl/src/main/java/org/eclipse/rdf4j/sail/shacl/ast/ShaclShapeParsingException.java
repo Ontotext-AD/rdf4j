@@ -57,7 +57,7 @@ public class ShaclShapeParsingException extends RDF4JException {
 			return id.toString();
 		}
 		if (id.isTripleTerm()) {
-			return "TRIPLE TERM" + id;
+			return "TRIPLE TERM " + id;
 		}
 		return id.toString();
 	}

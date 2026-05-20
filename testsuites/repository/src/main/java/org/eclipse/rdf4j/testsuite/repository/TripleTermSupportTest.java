@@ -11,10 +11,14 @@
 package org.eclipse.rdf4j.testsuite.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.eclipse.rdf4j.model.vocabulary.RDF.REIFIES;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.model.BNode;
 import org.eclipse.rdf4j.model.IRI;
@@ -36,15 +40,19 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Test cases for triple term support in the Repository.
  *
  * @author Jeen Broekstra
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Timeout(value = 10, unit = TimeUnit.MINUTES)
 public abstract class TripleTermSupportTest {
 
@@ -55,14 +63,7 @@ public abstract class TripleTermSupportTest {
 	private ValueFactory vf;
 
 	private BNode bob;
-	private BNode alice;
-	private BNode alexander;
-	private Literal nameAlice;
 	private Literal nameBob;
-	private Literal mboxAlice;
-	private Literal mboxBob;
-	private IRI context1;
-	private IRI context2;
 
 	@BeforeEach
 	public void setUp() {
@@ -76,17 +77,7 @@ public abstract class TripleTermSupportTest {
 
 		// Initialize values
 		bob = vf.createBNode();
-		alice = vf.createBNode();
-		alexander = vf.createBNode();
-
-		nameAlice = vf.createLiteral("Alice");
 		nameBob = vf.createLiteral("Bob");
-
-		mboxAlice = vf.createLiteral("alice@example.org");
-		mboxBob = vf.createLiteral("bob@example.org");
-
-		context1 = vf.createIRI("urn:x-local:graph1");
-		context2 = vf.createIRI("urn:x-local:graph2");
 	}
 
 	@AfterEach
@@ -108,76 +99,98 @@ public abstract class TripleTermSupportTest {
 	}
 
 	@Test
-	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
-	public void testSparqlStar() {
-//		TripleTerm rdfStarTriple = vf.createTriple(bob, FOAF.NAME, nameBob);
-//
-//		testCon.add(rdfStarTriple, RDF.TYPE, RDF.ALT);
-//
-//		String query = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
-//				"SELECT DISTINCT * WHERE { <<?s foaf:name ?o>> ?b ?c. }";
-//
-//		List<BindingSet> result = QueryResults.asList(testCon.prepareTupleQuery(query).evaluate());
-//		assertThat(result).hasSize(1);
-//
-//		BindingSet bs = result.get(0);
-//		assertThat(bs.getValue("s")).isEqualTo(bob);
-//		assertThat(bs.getValue("o")).isEqualTo(nameBob);
-//		assertThat(bs.getValue("b")).isEqualTo(RDF.TYPE);
-//		assertThat(bs.getValue("c")).isEqualTo(RDF.ALT);
+	public void testSparqlTripleTermInObjectPosition() {
+		TripleTerm tripleTerm = vf.createTripleTerm(bob, FOAF.NAME, nameBob);
+
+		testCon.add(RDF.ALT, RDF.TYPE, tripleTerm);
+
+		String query = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
+				"SELECT DISTINCT * WHERE { ?s ?p <<( ?s1 foaf:name ?o )>> }";
+
+		List<BindingSet> result = QueryResults.asList(testCon.prepareTupleQuery(query).evaluate());
+		assertThat(result).hasSize(1);
+
+		BindingSet bs = result.getFirst();
+		assertThat(bs.getValue("s1")).isEqualTo(bob);
+		assertThat(bs.getValue("o")).isEqualTo(nameBob);
+		assertThat(bs.getValue("p")).isEqualTo(RDF.TYPE);
+		assertThat(bs.getValue("s")).isEqualTo(RDF.ALT);
 
 	}
 
 	@Test
-	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
-	public void testSparqlStarUpdate() {
-//		Triple rdfStarTriple = vf.createTriple(bob, FOAF.NAME, nameBob);
-//		testCon.add(rdfStarTriple, RDF.TYPE, RDF.ALT);
-//
-//		String update = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
-//				"INSERT { ?s foaf:age 23 } WHERE { <<?s foaf:name ?o>> ?b ?c .}";
-//
-//		testCon.prepareUpdate(update).execute();
-//
-//		Assertions.assertTrue(testCon.hasStatement(bob, FOAF.AGE, vf.createLiteral(BigInteger.valueOf(23)), false));
+	public void testSparqlReifiedTripleOnSubjectPosition() {
+		var reifier = vf.createBNode();
+		TripleTerm tripleTerm = vf.createTripleTerm(bob, FOAF.NAME, nameBob);
+
+		testCon.add(reifier, REIFIES, tripleTerm);
+		testCon.add(reifier, RDF.TYPE, RDF.ALT);
+
+		String query = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
+				"SELECT DISTINCT * WHERE { <<?s foaf:name ?o>> ?b ?c }";
+
+		List<BindingSet> result = QueryResults.asList(testCon.prepareTupleQuery(query).evaluate());
+		assertThat(result).hasSize(2);
+
+		BindingSet bs = result.getFirst();
+		assertThat(bs.getValue("s")).isEqualTo(bob);
+		assertThat(bs.getValue("o")).isEqualTo(nameBob);
+		assertThat(bs.getValue("b")).isEqualTo(REIFIES);
+		assertThat(bs.getValue("c")).isEqualTo(tripleTerm);
+
+		bs = result.get(1);
+		assertThat(bs.getValue("s")).isEqualTo(bob);
+		assertThat(bs.getValue("o")).isEqualTo(nameBob);
+		assertThat(bs.getValue("b")).isEqualTo(RDF.TYPE);
+		assertThat(bs.getValue("c")).isEqualTo(RDF.ALT);
+
 	}
 
-	@Test
-	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
-	public void testRdfStarAddAndRetrieveSparql() {
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("tripleTermSetups")
+	public void testSparqlUpdateWithTripleTermVariants(String testName, Runnable setup) {
+		IRI bobClass = vf.createIRI("urn:Bob");
 
-//		Triple insertedTriple = vf.createTriple(RDF.SUBJECT, RDF.PREDICATE, RDF.OBJECT);
-//
-//		Literal literal = vf.createLiteral("I am a triple ;-D");
-//
-//		testCon.begin();
-//		testCon.add(insertedTriple, RDF.TYPE, literal);
-//
-//		TupleQuery query = testCon.prepareTupleQuery(
-//				"SELECT * WHERE { << <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> <http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> <http://www.w3.org/1999/02/22-rdf-syntax-ns#object> >> ?a ?b}");
-//
-//		Assertions.assertTrue(testCon.prepareBooleanQuery("ASK { ?t a 'I am a triple ;-D'}").evaluate());
-//		Assertions.assertEquals(1, getCount(query));
-//		testCon.commit();
+		setup.run();
+
+		String update = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
+				"INSERT { ?s foaf:age 23 } WHERE { <<?s foaf:name ?o>> ?b ?c . }";
+		testCon.prepareUpdate(update).execute();
+
+		assertTrue(testCon.hasStatement(bobClass, FOAF.AGE, vf.createLiteral(BigInteger.valueOf(23)), false));
 	}
 
-	@Test
-	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
-	public void testRdfStarAddAndRetrieveSparqlSeparateTransaction() {
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("tripleTermInsertionMethods")
+	public void testTripleTermAddAndRetrieveSparql(String testName,
+	                                               Runnable setup,
+	                                               String queryString) {
+		testCon.begin();
 
-//		Triple insertedTriple = vf.createTriple(RDF.SUBJECT, RDF.PREDICATE, RDF.OBJECT);
-//		Literal literal = vf.createLiteral("I am a triple ;-D");
-//		testCon.begin();
-//
-//		testCon.add(insertedTriple, RDF.TYPE, literal);
-//		testCon.commit();
-//		testCon.begin();
-//		Assertions.assertTrue(testCon.prepareBooleanQuery("ASK { ?t a 'I am a triple ;-D'}").evaluate());
-//		TupleQuery tupleQuery = testCon.prepareTupleQuery(
-//				"SELECT * WHERE { << <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> <http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> <http://www.w3.org/1999/02/22-rdf-syntax-ns#object> >> ?a ?b}");
-//		Assertions.assertEquals(1, getCount(tupleQuery));
-//		testCon.commit();
+		setup.run();
 
+		TupleQuery query = testCon.prepareTupleQuery(queryString);
+
+		assertTrue(testCon.prepareBooleanQuery("ASK { ?t a 'I am a triple ;-D'}").evaluate());
+		assertEquals(2, getCount(query));
+
+		testCon.commit();
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("tripleTermInsertionMethods")
+	public void testTripleTermAddAndRetrieveSparqlSeparateTransaction(String testName,
+	                                                                  Runnable setup,
+	                                                                  String queryString) {
+		testCon.begin();
+		setup.run();
+		testCon.commit();
+
+		testCon.begin();
+		Assertions.assertTrue(testCon.prepareBooleanQuery("ASK { ?t a 'I am a triple ;-D'}").evaluate());
+		TupleQuery tupleQuery = testCon.prepareTupleQuery(queryString);
+		Assertions.assertEquals(2, getCount(tupleQuery));
+		testCon.commit();
 	}
 
 	private static long getCount(TupleQuery tupleQuery) {
@@ -188,26 +201,23 @@ public abstract class TripleTermSupportTest {
 
 	@Test
 	public void testRdf12AddAndRetrieve() {
-
 		TripleTerm insertedTripleTerm = vf.createTripleTerm(RDF.SUBJECT, RDF.PREDICATE, RDF.OBJECT);
 		TripleTerm copyOfInsertedTripleTerm = vf.createTripleTerm(RDF.SUBJECT, RDF.PREDICATE, RDF.OBJECT);
 		Literal literal = vf.createLiteral("I am a triple ;-D");
 		BNode reifier = vf.createBNode();
 		testCon.begin();
 
-		testCon.add(reifier, RDF.REIFIES, insertedTripleTerm);
+		testCon.add(reifier, REIFIES, insertedTripleTerm);
 		testCon.add(reifier, RDF.TYPE, literal);
 
-		Assertions.assertEquals(1, testCon.getStatements(null, RDF.TYPE, literal, false).stream().count());
-		Assertions.assertEquals(1,
-				testCon.getStatements(null, RDF.REIFIES, copyOfInsertedTripleTerm, false).stream().count());
+		assertEquals(1, testCon.getStatements(null, RDF.TYPE, literal, false).stream().count());
+		assertEquals(1,
+				testCon.getStatements(null, REIFIES, copyOfInsertedTripleTerm, false).stream().count());
 		testCon.commit();
-
 	}
 
 	@Test
-	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
-	public void testMemoryStore_RDFstar() {
+	public void testMemoryStore_ReifiedTripleTerm() {
 		String queryString = "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
 				+ "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n"
 				+ "PREFIX person: <http://example.com/person/>\n"
@@ -251,24 +261,121 @@ public abstract class TripleTermSupportTest {
 			GraphQuery graphQuery = con.prepareGraphQuery(queryString);
 			try (GraphQueryResult result = graphQuery.evaluate()) {
 				List<Statement> statements = QueryResults.asList(result);
-				Assertions.assertEquals(29, statements.size());
+				assertEquals(100, statements.size());
 			}
 		}
 	}
 
 	@Test
-	@Disabled("Pending SPARQL 1.2 implementation and adapting test case to RDF 1.2")
-	public void testSparqlStarInObjectPosition() {
-		testCon.add(Values.bnode(), FOAF.KNOWS,
-				Values.tripleTerm(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
+	public void testReifiedTripleInObjectPosition() {
+		var reifier = Values.bnode();
+		testCon.add(reifier, REIFIES, Values.tripleTerm(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
+		testCon.add(Values.bnode(), FOAF.KNOWS, reifier);
 		TupleQuery tupleQuery = testCon.prepareTupleQuery(
 				"PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
 						"SELECT * WHERE { ?a ?b <<?s foaf:name ?o>>. }");
 		try (TupleQueryResult evaluate = tupleQuery.evaluate()) {
-			List<BindingSet> collect = evaluate.stream().collect(Collectors.toList());
-			Assertions.assertEquals(1, collect.size());
+			List<BindingSet> collect = evaluate.stream().toList();
+			assertEquals(1, collect.size());
+		}
+	}
+
+	@Test
+	public void testTripleTermInObjectPosition() {
+		testCon.add(Values.bnode(), FOAF.KNOWS, Values.tripleTerm(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
+		TupleQuery tupleQuery = testCon.prepareTupleQuery(
+				"PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
+						"SELECT * WHERE { ?a ?b <<( ?s foaf:name ?o )>>. }");
+		try (TupleQueryResult evaluate = tupleQuery.evaluate()) {
+			List<BindingSet> collect = evaluate.stream().toList();
+			assertEquals(1, collect.size());
 		}
 	}
 
 	protected abstract Repository createRepository();
+
+
+	private Stream<Arguments> tripleTermSetups() {
+		return Stream.of(
+				Arguments.of("API with TripleTerm", (Runnable) this::setupViaApi),
+				Arguments.of("SPARQL INSERT DATA", (Runnable) this::setupViaSparqlInsertData),
+				Arguments.of("SPARQL INSERT WHERE", (Runnable) this::setupViaSparqlInsertWhere)
+		);
+	}
+
+	private void setupViaApi() {
+		BNode reifier = vf.createBNode();
+		IRI bobClass = vf.createIRI("urn:Bob");
+		TripleTerm tripleTerm = vf.createTripleTerm(bobClass, FOAF.NAME, nameBob);
+		testCon.add(reifier, REIFIES, tripleTerm);
+		testCon.add(reifier, RDF.TYPE, RDF.ALT);
+	}
+
+	private void setupViaSparqlInsertData() {
+		String insertQuery = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
+				"INSERT DATA { << <urn:Bob> foaf:name \"Bob\" >> a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Alt> }";
+		testCon.prepareUpdate(insertQuery).execute();
+	}
+
+	private void setupViaSparqlInsertWhere() {
+		String insertQuery = "PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
+				"INSERT { << <urn:Bob> foaf:name \"Bob\" >> a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Alt> } WHERE {}";
+		testCon.prepareUpdate(insertQuery).execute();
+	}
+
+	private Stream<Arguments> tripleTermInsertionMethods() {
+		return Stream.of(
+				Arguments.of(
+						"API with TripleTerm and reifier",
+						(Runnable) this::insertViaApi,
+						"""
+                        SELECT * WHERE {
+                            _:reifier <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> <http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> <http://www.w3.org/1999/02/22-rdf-syntax-ns#object> )>> ;
+                                      ?a ?b .
+                        }
+                        """
+				),
+				Arguments.of(
+						"SPARQL INSERT DATA",
+						(Runnable) this::insertViaSparqlInsertData,
+						"SELECT * WHERE { << <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> " +
+								"<http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> " +
+								"<http://www.w3.org/1999/02/22-rdf-syntax-ns#object> >> ?a ?b}"
+				),
+				Arguments.of(
+						"SPARQL INSERT WHERE",
+						(Runnable) this::insertViaSparqlInsertWhere,
+						"SELECT * WHERE { << <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> " +
+								"<http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> " +
+								"<http://www.w3.org/1999/02/22-rdf-syntax-ns#object> >> ?a ?b}"
+				)
+		);
+	}
+
+	private void insertViaApi() {
+		var reifier = vf.createBNode();
+		TripleTerm insertedTriple = vf.createTripleTerm(RDF.SUBJECT, RDF.PREDICATE, RDF.OBJECT);
+		Literal literal = vf.createLiteral("I am a triple ;-D");
+		testCon.add(reifier, REIFIES, insertedTriple);
+		testCon.add(reifier, RDF.TYPE, literal);
+	}
+
+	private void insertViaSparqlInsertData() {
+		String insertQuery = "INSERT DATA { " +
+				"<< <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> " +
+				"<http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> " +
+				"<http://www.w3.org/1999/02/22-rdf-syntax-ns#object> >> " +
+				"a \"I am a triple ;-D\" }";
+		testCon.prepareUpdate(insertQuery).execute();
+	}
+
+	private void insertViaSparqlInsertWhere() {
+		testCon.clear();
+		String insertQuery = "INSERT { " +
+				"<< <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> " +
+				"<http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> " +
+				"<http://www.w3.org/1999/02/22-rdf-syntax-ns#object> >> " +
+				"a \"I am a triple ;-D\" } WHERE {}";
+		testCon.prepareUpdate(insertQuery).execute();
+	}
 }

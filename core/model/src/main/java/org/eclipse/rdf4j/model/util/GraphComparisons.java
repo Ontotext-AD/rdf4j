@@ -164,8 +164,7 @@ class GraphComparisons {
 		// Compatible blank node mapping found. We need to check that statements not involving blank nodes are equal in
 		// both models.
 		Optional<Statement> missingInModel2 = model1.stream()
-				.filter(st -> !(st.getSubject().isBNode() || st.getObject().isBNode()
-						|| st.getContext() instanceof BNode))
+				.filter(st -> !containsBNodeDeep(st))
 				.filter(st -> !model2.contains(st))
 				.findAny();
 
@@ -619,5 +618,55 @@ class GraphComparisons {
 			}
 			return true;
 		}
+	}
+
+	/**
+	 * Checks if a statement contains blank nodes at any level, including nested triple terms.
+	 * <p>
+	 * This deep check is necessary because RDF 1.2 and SPARQL 1.2 now permit blank nodes within
+	 * triple terms, whereas they were forbidden in earlier RDF-star specifications. The method
+	 * recursively examines nested triple terms to detect blank nodes at any depth.
+	 * <p>
+	 * Checks performed:
+	 * <ul>
+	 *   <li>Statement subject, object, and context (if present)</li>
+	 *   <li>Nested triple term subjects and objects (recursively)</li>
+	 * </ul>
+	 *
+	 * @param st the statement to examine
+	 * @return true if the statement or any nested triple term contains a blank node, false otherwise
+	 */
+	private static boolean containsBNodeDeep(Statement st) {
+		if (st.getSubject().isBNode() || st.getObject().isBNode()
+				|| st.getContext() instanceof BNode) {
+			return true;
+		}
+
+		if (st.getObject().isTripleTerm()) {
+			return tripleContainsBNode((TripleTerm) st.getObject());
+		}
+
+		return false;
+	}
+
+	/**
+	 * Recursively checks if a triple term contains blank nodes at any nesting level.
+	 * <p>
+	 * With RDF 1.2 allowing blank nodes in triple terms, this recursive check ensures
+	 * blank nodes are detected even in deeply nested triple term structures.
+	 *
+	 * @param t the triple term to examine
+	 * @return true if the triple term or any nested triple term contains a blank node, false otherwise
+	 */
+	private static boolean tripleContainsBNode(TripleTerm t) {
+		if (t.getSubject().isBNode() || t.getObject().isBNode()) {
+			return true;
+		}
+
+		if (t.getObject().isTripleTerm()) {
+			return tripleContainsBNode((TripleTerm) t.getObject());
+		}
+
+		return false;
 	}
 }

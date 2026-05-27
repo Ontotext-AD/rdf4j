@@ -1199,7 +1199,7 @@ void ConstTripleTerm() :
     <TRIPLE_OPEN>
         <LPAREN>
             ( IRIref() | LabeledBlankNode() )
-            IRIref()
+            Verb()
             ( ConstTripleTerm() | IRIref() | LabeledBlankNode() | NumericLiteral() | RDFLiteral() |BooleanLiteral() )
         <RPAREN>
     <TRIPLE_CLOSE>

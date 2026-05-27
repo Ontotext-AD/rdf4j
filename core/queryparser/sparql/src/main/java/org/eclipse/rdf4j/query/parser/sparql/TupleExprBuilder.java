@@ -1820,9 +1820,15 @@ public class TupleExprBuilder extends AbstractASTVisitor {
 			}
 		} else if (verbPath instanceof TupleExpr) {
 			if (annotation != null) {
-				StatementPattern sp = (StatementPattern) verbPath;
-				annotation.jjtAccept(this,
-						buildReifiedTripleVar(reifier, sp.getSubjectVar(), sp.getPredicateVar(), sp.getObjectVar()));
+				if (verbPath instanceof StatementPattern sp) {
+					annotation.jjtAccept(this,
+							buildReifiedTripleVar(reifier, sp.getSubjectVar(), sp.getPredicateVar(),
+									sp.getObjectVar()));
+				} else {
+					throw new MalformedQueryException(
+							"SPARQL 1.2 annotation syntax is only allowed for triple patterns " +
+									"with a simple predicate (IRI, variable, or 'a')");
+				}
 			}
 
 			graphPattern.addRequiredTE((TupleExpr) verbPath);

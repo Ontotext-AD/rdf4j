@@ -96,10 +96,7 @@ public class NativeTripleTermQueryEvaluationStep implements QueryEvaluationStep 
 				if (objValue != null && !objValue.equals(triple.getObject())) {
 					return false;
 				}
-				if (extValue != null && !extValue.equals(triple)) {
-					return false;
-				}
-				return true;
+				return extValue == null || extValue.equals(triple);
 			}
 
 			@Override

@@ -50,8 +50,6 @@ public abstract class SPARQL12UpdateComplianceTest extends SPARQLComplianceTest 
 
 	private static final Logger logger = LoggerFactory.getLogger(SPARQL12UpdateComplianceTest.class);
 
-	private static final String[] defaultIgnoredTests = {};
-
 	private static final List<String> excludedSubdirs = List.of("service");
 
 	protected Repository expectedResultRepo;
@@ -63,10 +61,7 @@ public abstract class SPARQL12UpdateComplianceTest extends SPARQLComplianceTest 
 	}
 
 	protected class DynamicSPARQL12UpdateComplianceTest extends DynamicSparqlComplianceTest {
-		private String queryFileURL;
-		private String resultFileURL;
 		private final Dataset dataset;
-		private boolean ordered;
 		private Repository dataRep;
 		private final String requestFile;
 
@@ -133,7 +128,11 @@ public abstract class SPARQL12UpdateComplianceTest extends SPARQLComplianceTest 
 						}
 					});
 
-					update.setDataset(dataset);
+					// Skip dataset setting for SPARQL 1.2 tests due to missing ut:graphData in manifests
+					// See: https://github.com/w3c/rdf-tests/issues/344
+					if (this.dataset != null && !requestFile.contains("sparql-1.2")) {
+						update.setDataset(dataset);
+					}
 					update.execute();
 
 					con.commit();
@@ -249,10 +248,6 @@ public abstract class SPARQL12UpdateComplianceTest extends SPARQLComplianceTest 
 		return tests;
 	}
 
-	public String getTestsSource() {
-		return testsSource;
-	}
-
 	public void setTestsSource(String testsSource) {
 		this.testsSource = testsSource;
 	}
@@ -332,7 +327,6 @@ public abstract class SPARQL12UpdateComplianceTest extends SPARQLComplianceTest 
 						IRI defaultGraphURI = (IRI) bs.getValue("defaultGraph");
 						IRI resultDefaultGraphURI = (IRI) bs.getValue("resultDefaultGraph");
 
-						SimpleDataset dataset = null;
 						namedGraphsQuery.setBinding("graphDef", action);
 						TupleQueryResult inputNamedGraphsResult = namedGraphsQuery.evaluate();
 

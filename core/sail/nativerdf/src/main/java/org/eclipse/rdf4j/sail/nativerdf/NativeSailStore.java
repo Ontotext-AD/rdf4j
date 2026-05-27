@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
+import org.eclipse.rdf4j.common.io.ByteArrayUtil;
 import org.eclipse.rdf4j.common.iteration.CloseableIteration;
 import org.eclipse.rdf4j.common.iteration.CloseableIteratorIteration;
 import org.eclipse.rdf4j.common.iteration.ConvertingIteration;
@@ -42,6 +43,7 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.TripleTerm;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.query.algebra.evaluation.impl.EvaluationStatistics;
@@ -69,6 +71,8 @@ class NativeSailStore implements SailStore {
 
 	final Logger logger = LoggerFactory.getLogger(NativeSailStore.class);
 	private static final Pattern WAL_SEGMENT_PATTERN = Pattern.compile("wal-\\d+\\.v1(?:\\.gz)?");
+
+	private static final CloseableIteration<? extends TripleTerm> TRIPLE_EMPTY_ITERATION = new EmptyIteration<>();
 
 	private final TripleStore tripleStore;
 
@@ -482,6 +486,15 @@ class NativeSailStore implements SailStore {
 		}
 	}
 
+	CloseableIteration<? extends TripleTerm> createTripleTermIterator(Resource subj, IRI pred, Value obj,
+			boolean explicit)
+			throws IOException {
+		RecordIterator btreeIter = tripleStore.getTriples(NativeValue.UNKNOWN_ID, NativeValue.UNKNOWN_ID,
+				NativeValue.UNKNOWN_ID, NativeValue.UNKNOWN_ID, explicit, false);
+		// Get all statements and filter for triple terms in subject/object positions
+		return getMatchingTripleTerms(btreeIter, subj, pred, obj);
+	}
+
 	double cardinality(Resource subj, IRI pred, Value obj, Resource context) throws IOException {
 		int subjID = NativeValue.UNKNOWN_ID;
 		if (subj != null) {
@@ -516,6 +529,69 @@ class NativeSailStore implements SailStore {
 		}
 
 		return tripleStore.cardinality(subjID, predID, objID, contextID);
+	}
+
+	private CloseableIteration<? extends TripleTerm> getMatchingTripleTerms(RecordIterator btreeIter, Resource subj,
+			IRI pred, Value obj) throws IOException {
+		List<TripleTerm> matchingTriples = new ArrayList<>();
+
+		// Iterate through ALL values in the value store
+		// For each value that is a TripleTerm, check if it matches the pattern
+		try (btreeIter) {
+			byte[] quad;
+			while ((quad = btreeIter.next()) != null) {
+				// Check object (can be a triple term)
+				int objId = ByteArrayUtil.getInt(quad, TripleStore.OBJ_IDX);
+				Value objValue = valueStore.getValue(objId);
+				if (objValue instanceof TripleTerm triple) {
+					if (triple.getObject().isTripleTerm()) {
+						TripleTerm tripleTerm = (TripleTerm) triple.getObject();
+						if (matchesPattern(tripleTerm, subj, pred, obj)) {
+							matchingTriples.add(tripleTerm);
+						}
+					}
+					if (matchesPattern(triple, subj, pred, obj)) {
+						matchingTriples.add(triple);
+					}
+				}
+			}
+		} catch (IOException e) {
+			try {
+				btreeIter.close();
+			} catch (Exception closeException) {
+				e.addSuppressed(closeException);
+			}
+			throw e;
+		} finally {
+			if (btreeIter != null) {
+				btreeIter.close();
+			}
+		}
+
+		return new CloseableIteratorIteration<>(matchingTriples.iterator());
+	}
+
+	private boolean matchesPattern(TripleTerm triple, Resource subj, IRI pred, Value obj) throws IOException {
+		if (subj != null) {
+			long tripleSubjId = valueStore.getID(triple.getSubject());
+			long targetSubjId = valueStore.getID(subj);
+			if (tripleSubjId != targetSubjId) {
+				return false;
+			}
+		}
+		if (pred != null) {
+			long triplePredId = valueStore.getID(triple.getPredicate());
+			long targetPredId = valueStore.getID(pred);
+			if (triplePredId != targetPredId) {
+				return false;
+			}
+		}
+		if (obj != null) {
+			long tripleObjId = valueStore.getID(triple.getObject());
+			long targetObjId = valueStore.getID(obj);
+			return tripleObjId == targetObjId;
+		}
+		return true;
 	}
 
 	public void disableTxnStatus() {
@@ -908,6 +984,16 @@ class NativeSailStore implements SailStore {
 				return createStatementIterator(subj, pred, obj, explicit, contexts);
 			} catch (IOException e) {
 				throw new SailException("Unable to get statements", e);
+			}
+		}
+
+		@Override
+		public CloseableIteration<? extends TripleTerm> getTriples(Resource subj, IRI pred, Value obj)
+				throws SailException {
+			try {
+				return createTripleTermIterator(subj, pred, obj, explicit);
+			} catch (IOException e) {
+				throw new SailException("Unable to get triples", e);
 			}
 		}
 	}

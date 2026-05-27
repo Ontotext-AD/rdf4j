@@ -360,6 +360,8 @@ public abstract class AbstractSPARQLJSONParser extends AbstractQueryResultParser
 				}
 			} else if (XMLLANG.equals(fieldName)) {
 				lang = jp.nextStringValue();
+			} else if (ITS_DIR.equals(fieldName)) {
+				dir = jp.nextStringValue();
 			} else if (DATATYPE.equals(fieldName)) {
 				datatype = jp.nextStringValue();
 			} else if (VALUE.equals(fieldName)) {

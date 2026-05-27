@@ -102,8 +102,13 @@ public class MemTripleIterator<X extends Exception> extends LookAheadIteration<M
 			}
 
 			if (isInSnapshot(statement)) {
-				if (statement.getObject().isTripleTerm() && statement.getObject() instanceof MemTripleTerm) {
-					MemTripleTerm triple = (MemTripleTerm) statement.getObject();
+				if (statement.getObject().isTripleTerm() && statement.getObject()instanceof MemTripleTerm triple) {
+					if (triple.getObject().isTripleTerm()) {
+						MemTripleTerm tripleTerm = (MemTripleTerm) triple.getObject();
+						if (tripleTerm.matchesSPO(subject, predicate, object)) {
+							return tripleTerm;
+						}
+					}
 					if (triple.matchesSPO(subject, predicate, object)) {
 						return triple;
 					}

@@ -40,6 +40,7 @@ import org.eclipse.rdf4j.model.BNode;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.TripleTerm;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.base.CoreDatatype;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
@@ -52,12 +53,14 @@ import org.eclipse.rdf4j.sail.nativerdf.datastore.RecoveredDataException;
 import org.eclipse.rdf4j.sail.nativerdf.model.CorruptIRI;
 import org.eclipse.rdf4j.sail.nativerdf.model.CorruptIRIOrBNode;
 import org.eclipse.rdf4j.sail.nativerdf.model.CorruptLiteral;
+import org.eclipse.rdf4j.sail.nativerdf.model.CorruptTripleTerm;
 import org.eclipse.rdf4j.sail.nativerdf.model.CorruptUnknownValue;
 import org.eclipse.rdf4j.sail.nativerdf.model.CorruptValue;
 import org.eclipse.rdf4j.sail.nativerdf.model.NativeBNode;
 import org.eclipse.rdf4j.sail.nativerdf.model.NativeIRI;
 import org.eclipse.rdf4j.sail.nativerdf.model.NativeLiteral;
 import org.eclipse.rdf4j.sail.nativerdf.model.NativeResource;
+import org.eclipse.rdf4j.sail.nativerdf.model.NativeTripleTerm;
 import org.eclipse.rdf4j.sail.nativerdf.model.NativeValue;
 import org.eclipse.rdf4j.sail.nativerdf.wal.ValueStoreWAL;
 import org.eclipse.rdf4j.sail.nativerdf.wal.ValueStoreWalConfig;
@@ -111,6 +114,8 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 	private static final byte BNODE_VALUE = 0x2; // 0000 0010
 
 	private static final byte LITERAL_VALUE = 0x3; // 0000 0011
+
+	private static final byte TRIPLE_VALUE = 0x4; // 0000 0100
 
 	/*-----------*
 	 * Variables *
@@ -270,6 +275,8 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 						corruptValue = new CorruptIRIOrBNode(revision, id, recovered);
 					} else if (t == LITERAL_VALUE) {
 						corruptValue = new CorruptLiteral(revision, id, recovered);
+					} else if (t == TRIPLE_VALUE) {
+						corruptValue = new CorruptTripleTerm(revision, id, recovered);
 					} else {
 						corruptValue = new CorruptUnknownValue(revision, id, recovered);
 					}
@@ -688,6 +695,8 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			data = bnode2data((BNode) value, create);
 		} else if (value instanceof Literal) {
 			data = literal2data((Literal) value, create);
+		} else if (value instanceof TripleTerm) {
+			data = triple2data((TripleTerm) value, create);
 		} else {
 			throw new IllegalArgumentException("value parameter should be a URI, BNode or Literal");
 		}
@@ -741,18 +750,20 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 	}
 
 	private byte[] literal2data(Literal literal, boolean create) throws IOException {
-		return literal2data(literal.getLabel(), literal.getLanguage(), literal.getDatatype(), create);
+		return literal2data(literal.getLabel(), literal.getLanguage(), literal.getBaseDirection(),
+				literal.getDatatype(), create);
 	}
 
 	private byte[] literal2legacy(Literal literal) throws IOException {
 		IRI dt = literal.getDatatype();
-		if (XSD.STRING.equals(dt) || RDF.LANGSTRING.equals(dt)) {
-			return literal2data(literal.getLabel(), literal.getLanguage(), null, false);
+		if (XSD.STRING.equals(dt) || RDF.LANGSTRING.equals(dt) || RDF.DIRLANGSTRING.equals(dt)) {
+			return literal2data(literal.getLabel(), literal.getLanguage(), literal.getBaseDirection(), null, false);
 		}
-		return literal2data(literal.getLabel(), literal.getLanguage(), dt, false);
+		return literal2data(literal.getLabel(), literal.getLanguage(), Literal.BaseDirection.NONE, dt, false);
 	}
 
-	private byte[] literal2data(String label, Optional<String> lang, IRI dt, boolean create)
+	private byte[] literal2data(String label, Optional<String> lang, Literal.BaseDirection baseDirection, IRI dt,
+			boolean create)
 			throws IOException, UnsupportedEncodingException {
 		// Get datatype ID
 		int datatypeID = NativeValue.UNKNOWN_ID;
@@ -785,18 +796,36 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			}
 		}
 
+		// Get base direction byte
+		byte directionByte = 0;
+		if (baseDirection != null) {
+			switch (baseDirection) {
+			case LTR:
+				directionByte = 1;
+				break;
+			case RTL:
+				directionByte = 2;
+				break;
+			case NONE:
+			default:
+				directionByte = 0;
+				break;
+			}
+		}
+
 		// Get label in UTF-8
 		byte[] labelData = label.getBytes(StandardCharsets.UTF_8);
 
 		// Combine parts in a single byte array
-		byte[] literalData = new byte[6 + langDataLength + labelData.length];
+		byte[] literalData = new byte[7 + langDataLength + labelData.length];
 		literalData[0] = LITERAL_VALUE;
 		ByteArrayUtil.putInt(datatypeID, literalData, 1);
 		literalData[5] = (byte) (langDataLength & 0xFF);
+		literalData[6] = directionByte;
 		if (langData != null) {
-			ByteArrayUtil.put(langData, literalData, 6);
+			ByteArrayUtil.put(langData, literalData, 7);
 		}
-		ByteArrayUtil.put(labelData, literalData, 6 + langDataLength);
+		ByteArrayUtil.put(labelData, literalData, 7 + langDataLength);
 
 		if (logger.isDebugEnabled()) {
 			logger.debug("literal2data produced len={} summary={} thread={}", literalData.length,
@@ -804,6 +833,48 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 		}
 
 		return literalData;
+	}
+
+	private byte[] triple2data(TripleTerm triple, boolean create) throws IOException {
+		int subjectID, predicateID, objectID;
+
+		if (create) {
+			subjectID = storeValue(triple.getSubject());
+			predicateID = storeValue(triple.getPredicate());
+			objectID = storeValue(triple.getObject());
+		} else {
+			subjectID = getID(triple.getSubject());
+			if (subjectID == NativeValue.UNKNOWN_ID) {
+				return null;
+			}
+			predicateID = getID(triple.getPredicate());
+			if (predicateID == NativeValue.UNKNOWN_ID) {
+				return null;
+			}
+			objectID = getID(triple.getObject());
+			if (objectID == NativeValue.UNKNOWN_ID) {
+				return null;
+			}
+		}
+
+		if (logger.isDebugEnabled()) {
+			logger.debug("triple2data thread={} subjectID={} predicateID={} objectID={} create={}",
+					threadName(), subjectID, predicateID, objectID, create);
+		}
+
+		// Format: [type(1)][subjectID(4)][predicateID(4)][objectID(4)]
+		byte[] tripleData = new byte[13];
+		tripleData[0] = TRIPLE_VALUE;
+		ByteArrayUtil.putInt(subjectID, tripleData, 1);
+		ByteArrayUtil.putInt(predicateID, tripleData, 5);
+		ByteArrayUtil.putInt(objectID, tripleData, 9);
+
+		if (logger.isDebugEnabled()) {
+			logger.debug("triple2data produced len={} summary={} thread={}", tripleData.length,
+					summarize(tripleData), threadName());
+		}
+
+		return tripleData;
 	}
 
 	private boolean isNamespaceData(byte[] data) {
@@ -829,6 +900,8 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			return data2bnode(id, data);
 		case LITERAL_VALUE:
 			return data2literal(id, data);
+		case TRIPLE_VALUE:
+			return data2triple(id, data);
 		default:
 			if (SOFT_FAIL_ON_CORRUPT_DATA_AND_REPAIR_INDEXES) {
 				logger.error("Soft fail on corrupt data: Invalid type {} for value with id {}", data[0], id);
@@ -878,18 +951,26 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 				datatype = (IRI) getValue(datatypeID);
 			}
 
+			// Get language tag length and direction
+			int langLength = data[5] & 0xFF;
+			byte directionByte = data[6];
+			Literal.BaseDirection baseDirection = switch (directionByte) {
+			case 1 -> Literal.BaseDirection.LTR;
+			case 2 -> Literal.BaseDirection.RTL;
+			default -> Literal.BaseDirection.NONE;
+			};
+
 			// Get language tag
 			String lang = null;
-			int langLength = data[5] & 0xFF;
 			if (langLength > 0) {
-				lang = new String(data, 6, langLength, StandardCharsets.UTF_8);
+				lang = new String(data, 7, langLength, StandardCharsets.UTF_8);
 			}
 
 			// Get label
-			String label = new String(data, 6 + langLength, data.length - 6 - langLength, StandardCharsets.UTF_8);
+			String label = new String(data, 7 + langLength, data.length - 7 - langLength, StandardCharsets.UTF_8);
 
 			if (lang != null) {
-				return (T) new NativeLiteral(revision, label, lang, id);
+				return (T) new NativeLiteral(revision, label, lang, baseDirection, id);
 			} else if (datatype != null) {
 				return (T) new NativeLiteral(revision, label, datatype, id);
 			} else {
@@ -905,6 +986,31 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			throw e;
 		}
 
+	}
+
+	private <T extends NativeValue & TripleTerm> T data2triple(int id, byte[] data) throws IOException {
+		try {
+			// Read the three component IDs
+			int subjectID = ByteArrayUtil.getInt(data, 1);
+			int predicateID = ByteArrayUtil.getInt(data, 5);
+			int objectID = ByteArrayUtil.getInt(data, 9);
+
+			// Retrieve the actual values
+			Resource subject = (Resource) getValue(subjectID);
+			IRI predicate = (IRI) getValue(predicateID);
+			Value object = getValue(objectID);
+
+			return (T) new NativeTripleTerm(revision, subject, predicate, object, id);
+
+		} catch (Throwable e) {
+			if (SOFT_FAIL_ON_CORRUPT_DATA_AND_REPAIR_INDEXES
+					&& (e instanceof Exception || e instanceof AssertionError)) {
+				CorruptTripleTerm v = new CorruptTripleTerm(revision, id, data);
+				tryRecoverFromWal(id, v);
+				return (T) v;
+			}
+			throw e;
+		}
 	}
 
 	private void tryRecoverFromWal(int id, CorruptValue holder) {
@@ -1248,6 +1354,12 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			String lang = literal.getLanguage().orElse("");
 			String datatype = literal.getDatatype() != null ? literal.getDatatype().stringValue() : "";
 			return new ValueStoreWalDescription(ValueStoreWalValueKind.LITERAL, literal.getLabel(), datatype, lang);
+		} else if (value instanceof TripleTerm triple) {
+			// Represent triple as string: <<( subject predicate object )>>
+			String tripleStr = "<<( " + triple.getSubject().stringValue() + " " +
+					triple.getPredicate().stringValue() + " " +
+					triple.getObject().stringValue() + " )>>";
+			return new ValueStoreWalDescription(ValueStoreWalValueKind.TRIPLE_TERM, tripleStr, "", "");
 		} else {
 			throw new IllegalArgumentException("value parameter should be a URI, BNode or Literal");
 		}
@@ -1360,6 +1472,8 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			return getNativeResource((Resource) value);
 		} else if (value instanceof Literal) {
 			return getNativeLiteral((Literal) value);
+		} else if (value instanceof TripleTerm) {
+			return getNativeTriple((TripleTerm) value);
 		} else {
 			throw new IllegalArgumentException("Unknown value type: " + value.getClass());
 		}
@@ -1421,6 +1535,18 @@ public class ValueStore extends SimpleValueFactory implements AutoCloseable {
 			NativeIRI datatype = getNativeURI(l.getDatatype());
 			return new NativeLiteral(revision, l.getLabel(), datatype);
 		}
+	}
+
+	public NativeTripleTerm getNativeTriple(TripleTerm t) {
+		if (isOwnValue(t)) {
+			return (NativeTripleTerm) t;
+		}
+
+		Resource subject = (Resource) getNativeValue(t.getSubject());
+		IRI predicate = getNativeURI(t.getPredicate());
+		Value object = getNativeValue(t.getObject());
+
+		return new NativeTripleTerm(revision, subject, predicate, object);
 	}
 
 	/*--------------------*

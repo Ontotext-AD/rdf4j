@@ -163,19 +163,25 @@ public abstract class SPARQLComplianceTest {
 				// rdfParser.setPreserveBNodeIDs(true);
 
 				RDFInserter rdfInserter = new RDFInserter(con);
-				rdfInserter.enforceContext(context);
+				// Skip context enforcement for SPARQL 1.2 tests due to missing ut:graphData in manifests
+				// See: https://github.com/w3c/rdf-tests/issues/344
+				if (!graphURI.toString().contains("sparql-1.2")) {
+					rdfInserter.enforceContext(context);
+				}
 				rdfParser.setRDFHandler(rdfInserter);
 
 				URL graphURL = new URL(graphURI.toString());
 				try (InputStream in = graphURL.openStream()) {
-
-					String content = new String(in.readAllBytes());
-					String prefixes = extractPrefixes(content);
-					String triples = extractTriples(content);
-
-					String query = prefixes + "\nINSERT {\n" + triples + "\n} WHERE {}";
-					con.prepareUpdate(query).execute();
-					// rdfParser.parse(in, graphURI.toString());
+					// Try the SPARQL INSERT/WHERE parsing with the following.
+					// Note that one test is failing because of
+					// the different handling of the datatype
+//					String content = new String(in.readAllBytes());
+//					String prefixes = extractPrefixes(content);
+//					String triples = extractTriples(content);
+//
+//					String query = prefixes + "\nINSERT {\n" + triples + "\n} WHERE {}";
+//					con.prepareUpdate(query).execute();
+					rdfParser.parse(in, graphURI.toString());
 				}
 
 				con.commit();

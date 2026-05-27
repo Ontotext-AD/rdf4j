@@ -55,6 +55,7 @@ import org.eclipse.rdf4j.query.resultio.QueryResultIO;
 import org.eclipse.rdf4j.query.resultio.TupleQueryResultParser;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
+import org.eclipse.rdf4j.repository.RepositoryResult;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.repository.sail.SailRepositoryConnection;
 import org.eclipse.rdf4j.rio.RDFFormat;
@@ -376,7 +377,9 @@ public abstract class SPARQLQueryComplianceTest extends SPARQLComplianceTest {
 					}
 				});
 
-				if (dataset != null) {
+				// Skip dataset validation for SPARQL 1.2 tests due to missing ut:graphData in manifests
+				// See: https://github.com/w3c/rdf-tests/issues/344
+				if (dataset != null && !queryFileURL.contains("sparql-1.2")) {
 					query.setDataset(dataset);
 				}
 

@@ -440,7 +440,9 @@ public class QueryEvaluationUtility {
 	 * @see <a href="http://www.w3.org/TR/sparql11-query/#func-string">SPARQL Functions on Strings Documentation</a>
 	 */
 	public static boolean isStringLiteral(Literal l) {
-		return l.getCoreDatatype() == CoreDatatype.XSD.STRING || l.getCoreDatatype() == CoreDatatype.RDF.LANGSTRING;
+		return l.getCoreDatatype() == CoreDatatype.XSD.STRING ||
+				l.getCoreDatatype() == CoreDatatype.RDF.LANGSTRING ||
+				l.getCoreDatatype() == CoreDatatype.RDF.DIRLANGSTRING;
 	}
 
 	private static boolean isSupportedDatatype(CoreDatatype.XSD datatype) {

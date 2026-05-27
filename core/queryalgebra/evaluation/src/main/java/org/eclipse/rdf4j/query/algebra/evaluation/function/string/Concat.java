@@ -42,7 +42,6 @@ public class Concat implements Function {
 		String commonLanguageTag = null;
 		Literal.BaseDirection commonDirection = null;
 		boolean useLanguageTag = true;
-		boolean useDirection = true;
 
 		for (Value arg : args) {
 			if (arg instanceof Literal lit) {
@@ -62,17 +61,16 @@ public class Concat implements Function {
 					}
 					// Track base direction (ltr/rtl) consistency across all language-tagged literals
 					// First literal sets the expected direction (even if NONE)
-					if (useDirection && commonDirection == null) {
+					if (useLanguageTag && commonDirection == null) {
 						commonDirection = lit.getBaseDirection();
 					}
 					// If any subsequent literal has a different direction, drop direction metadata
 					else if (commonDirection != lit.getBaseDirection()) {
 						commonDirection = null;
-						useDirection = false;
+						useLanguageTag = false;
 					}
 				} else {
 					useLanguageTag = false;
-					useDirection = false;
 				}
 
 				concatBuilder.append(lit.getLabel());

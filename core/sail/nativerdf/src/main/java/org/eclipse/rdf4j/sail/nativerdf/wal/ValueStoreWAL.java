@@ -182,22 +182,30 @@ public final class ValueStoreWAL implements AutoCloseable {
 		return config;
 	}
 
+	public long logMint(int id, ValueStoreWalValueKind kind, String lexical, String datatype, String language, int hash)
+			throws IOException {
+		return logMint(id, kind, lexical, datatype, language, "", hash);
+	}
+
 	/**
 	 * Append a minted value record to the WAL.
 	 *
-	 * @param id       the ValueStore internal id
-	 * @param kind     the kind of value (IRI, BNODE, LITERAL, NAMESPACE)
-	 * @param lexical  the lexical form (may be empty but never null)
-	 * @param datatype the datatype IRI string for literals, otherwise empty
-	 * @param language the language tag for literals, otherwise empty
-	 * @param hash     a hash of the underlying serialized value
+	 * @param id            the ValueStore internal id
+	 * @param kind          the kind of value (IRI, BNODE, LITERAL, NAMESPACE)
+	 * @param lexical       the lexical form (may be empty but never null)
+	 * @param datatype      the datatype IRI string for literals, otherwise empty
+	 * @param language      the language tag for literals, otherwise empty
+	 * @param baseDirection the baseDirection for literals, otherwise empty
+	 * @param hash          a hash of the underlying serialized value
 	 * @return the log sequence number (LSN) assigned to the record
 	 */
-	public long logMint(int id, ValueStoreWalValueKind kind, String lexical, String datatype, String language, int hash)
+	public long logMint(int id, ValueStoreWalValueKind kind, String lexical, String datatype, String language,
+			String baseDirection, int hash)
 			throws IOException {
 		ensureOpen();
 		long lsn = nextLsn.incrementAndGet();
-		ValueStoreWalRecord record = new ValueStoreWalRecord(lsn, id, kind, lexical, datatype, language, hash);
+		ValueStoreWalRecord record = new ValueStoreWalRecord(lsn, id, kind, lexical, datatype, language, baseDirection,
+				hash);
 		enqueue(record);
 		return lsn;
 	}

@@ -94,7 +94,7 @@ class ValueStoreWalRecoveryRebuildTest {
 					ByteArrayUtil.put(idData, bnode, 1);
 					ds.storeData(bnode);
 				} else if (rec.valueKind() == ValueStoreWalValueKind.LITERAL) {
-					ds.storeData(encodeLiteral(rec.lexical(), rec.datatype(), rec.language(), ds));
+					ds.storeData(encodeLiteral(rec.lexical(), rec.datatype(), rec.language(), rec.baseDirection(), ds));
 				}
 			}
 			ds.sync();
@@ -114,7 +114,10 @@ class ValueStoreWalRecoveryRebuildTest {
 					break;
 				case LITERAL:
 					Literal l = (rec.language() != null && !rec.language().isEmpty())
-							? VF.createLiteral(rec.lexical(), rec.language())
+							? rec.baseDirection() != null
+									? VF.createLiteral(rec.lexical(), rec.language(),
+											Literal.BaseDirection.fromString(rec.baseDirection()))
+									: VF.createLiteral(rec.lexical(), rec.language())
 							: (rec.datatype() != null && !rec.datatype().isEmpty())
 									? VF.createLiteral(rec.lexical(), VF.createIRI(rec.datatype()))
 									: VF.createLiteral(rec.lexical());
@@ -185,19 +188,31 @@ class ValueStoreWalRecoveryRebuildTest {
 		return data;
 	}
 
-	private byte[] encodeLiteral(String label, String datatype, String language, DataStore ds) throws IOException {
+	private byte[] encodeLiteral(String label, String datatype, String language, String baseDirection, DataStore ds)
+			throws IOException {
 		int dtId = -1; // UNKNOWN_ID
 		if (datatype != null && !datatype.isEmpty()) {
 			byte[] dtBytes = encodeIri(datatype, ds);
 			int id = ds.getID(dtBytes);
 			dtId = id == -1 ? ds.storeData(dtBytes) : id;
 		}
-		byte[] langBytes = language == null ? new byte[0] : language.getBytes(StandardCharsets.UTF_8);
+
+		byte[] langBytes = language == null || language.isEmpty() ? new byte[0]
+				: language.getBytes(StandardCharsets.UTF_8);
 		byte[] labelBytes = label.getBytes(StandardCharsets.UTF_8);
-		byte[] data = new byte[1 + 4 + 1 + 1 + langBytes.length + labelBytes.length];
-		data[0] = 0x3; // LITERAL tag
+
+		// NEW FORMAT (7 byte header): [type][datatypeID(4)][langLength][direction][langData][labelData]
+		byte directionByte = switch (baseDirection.toLowerCase()) {
+		case "ltr" -> (byte) 1;
+		case "rtl" -> (byte) 2;
+		default -> (byte) 0;
+		};
+
+		byte[] data = new byte[7 + langBytes.length + labelBytes.length];
+		data[0] = 0x5; // LITERAL_WITH_DIR_VALUE - the new type marker
 		ByteArrayUtil.putInt(dtId, data, 1);
 		data[5] = (byte) (langBytes.length & 0xFF);
+		data[6] = directionByte;
 		if (langBytes.length > 0) {
 			ByteArrayUtil.put(langBytes, data, 7);
 		}

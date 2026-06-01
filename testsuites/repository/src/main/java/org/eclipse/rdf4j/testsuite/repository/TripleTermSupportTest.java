@@ -163,8 +163,8 @@ public abstract class TripleTermSupportTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("tripleTermInsertionMethods")
 	public void testTripleTermAddAndRetrieveSparql(String testName,
-	                                               Runnable setup,
-	                                               String queryString) {
+			Runnable setup,
+			String queryString) {
 		testCon.begin();
 
 		setup.run();
@@ -180,8 +180,8 @@ public abstract class TripleTermSupportTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("tripleTermInsertionMethods")
 	public void testTripleTermAddAndRetrieveSparqlSeparateTransaction(String testName,
-	                                                                  Runnable setup,
-	                                                                  String queryString) {
+			Runnable setup,
+			String queryString) {
 		testCon.begin();
 		setup.run();
 		testCon.commit();
@@ -282,7 +282,8 @@ public abstract class TripleTermSupportTest {
 
 	@Test
 	public void testTripleTermInObjectPosition() {
-		testCon.add(Values.bnode(), FOAF.KNOWS, Values.tripleTerm(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
+		testCon.add(Values.bnode(), FOAF.KNOWS,
+				Values.tripleTerm(Values.bnode(), FOAF.NAME, Values.literal("John Doe")));
 		TupleQuery tupleQuery = testCon.prepareTupleQuery(
 				"PREFIX foaf: <" + FOAF.NAMESPACE + ">\n" +
 						"SELECT * WHERE { ?a ?b <<( ?s foaf:name ?o )>>. }");
@@ -293,7 +294,6 @@ public abstract class TripleTermSupportTest {
 	}
 
 	protected abstract Repository createRepository();
-
 
 	private Stream<Arguments> tripleTermSetups() {
 		return Stream.of(
@@ -329,11 +329,11 @@ public abstract class TripleTermSupportTest {
 						"API with TripleTerm and reifier",
 						(Runnable) this::insertViaApi,
 						"""
-                        SELECT * WHERE {
-                            _:reifier <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> <http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> <http://www.w3.org/1999/02/22-rdf-syntax-ns#object> )>> ;
-                                      ?a ?b .
-                        }
-                        """
+								SELECT * WHERE {
+								    _:reifier <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <http://www.w3.org/1999/02/22-rdf-syntax-ns#subject> <http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate> <http://www.w3.org/1999/02/22-rdf-syntax-ns#object> )>> ;
+								              ?a ?b .
+								}
+								"""
 				),
 				Arguments.of(
 						"SPARQL INSERT DATA",

@@ -623,14 +623,14 @@ class GraphComparisons {
 	/**
 	 * Checks if a statement contains blank nodes at any level, including nested triple terms.
 	 * <p>
-	 * This deep check is necessary because RDF 1.2 and SPARQL 1.2 now permit blank nodes within
-	 * triple terms, whereas they were forbidden in earlier RDF-star specifications. The method
-	 * recursively examines nested triple terms to detect blank nodes at any depth.
+	 * This deep check is necessary because RDF 1.2 and SPARQL 1.2 now permit blank nodes within triple terms, whereas
+	 * they were forbidden in earlier RDF-star specifications. The method recursively examines nested triple terms to
+	 * detect blank nodes at any depth.
 	 * <p>
 	 * Checks performed:
 	 * <ul>
-	 *   <li>Statement subject, object, and context (if present)</li>
-	 *   <li>Nested triple term subjects and objects (recursively)</li>
+	 * <li>Statement subject, object, and context (if present)</li>
+	 * <li>Nested triple term subjects and objects (recursively)</li>
 	 * </ul>
 	 *
 	 * @param st the statement to examine
@@ -652,8 +652,8 @@ class GraphComparisons {
 	/**
 	 * Recursively checks if a triple term contains blank nodes at any nesting level.
 	 * <p>
-	 * With RDF 1.2 allowing blank nodes in triple terms, this recursive check ensures
-	 * blank nodes are detected even in deeply nested triple term structures.
+	 * With RDF 1.2 allowing blank nodes in triple terms, this recursive check ensures blank nodes are detected even in
+	 * deeply nested triple term structures.
 	 *
 	 * @param t the triple term to examine
 	 * @return true if the triple term or any nested triple term contains a blank node, false otherwise

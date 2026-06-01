@@ -23,16 +23,23 @@ public final class ValueStoreWalRecord {
 	private final String lexical;
 	private final String datatype;
 	private final String language;
+	private final String baseDirection;
 	private final int hash;
 
 	public ValueStoreWalRecord(long lsn, int id, ValueStoreWalValueKind valueKind, String lexical, String datatype,
 			String language, int hash) {
+		this(lsn, id, valueKind, lexical, datatype, language, "", hash);
+	}
+
+	public ValueStoreWalRecord(long lsn, int id, ValueStoreWalValueKind valueKind, String lexical, String datatype,
+			String language, String baseDirection, int hash) {
 		this.lsn = lsn;
 		this.id = id;
 		this.valueKind = Objects.requireNonNull(valueKind, "valueKind");
 		this.lexical = lexical == null ? "" : lexical;
 		this.datatype = datatype == null ? "" : datatype;
 		this.language = language == null ? "" : language;
+		this.baseDirection = baseDirection == null ? "" : baseDirection;
 		this.hash = hash;
 	}
 
@@ -58,6 +65,10 @@ public final class ValueStoreWalRecord {
 
 	public String language() {
 		return language;
+	}
+
+	public String baseDirection() {
+		return baseDirection;
 	}
 
 	public int hash() {

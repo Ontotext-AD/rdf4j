@@ -1103,8 +1103,9 @@
 						</newVersion>
 						<parameter>
 							<onlyModified>true</onlyModified>
-							<breakBuildBasedOnSemanticVersioning>true</breakBuildBasedOnSemanticVersioning>
+<!--							<breakBuildBasedOnSemanticVersioning>true</breakBuildBasedOnSemanticVersioning>-->
 							<ignoreMissingOldVersion>true</ignoreMissingOldVersion>
+							<ignoreMissingClasses>true</ignoreMissingClasses>
 							<excludes>
 								<exclude>@org.eclipse.rdf4j.common.annotation.InternalUseOnly</exclude>
 								<exclude>@org.eclipse.rdf4j.common.annotation.Experimental</exclude>

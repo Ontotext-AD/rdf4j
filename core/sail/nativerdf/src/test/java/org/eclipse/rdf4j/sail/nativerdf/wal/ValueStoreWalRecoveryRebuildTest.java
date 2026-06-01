@@ -194,14 +194,14 @@ class ValueStoreWalRecoveryRebuildTest {
 		}
 		byte[] langBytes = language == null ? new byte[0] : language.getBytes(StandardCharsets.UTF_8);
 		byte[] labelBytes = label.getBytes(StandardCharsets.UTF_8);
-		byte[] data = new byte[1 + 4 + 1 + langBytes.length + labelBytes.length];
+		byte[] data = new byte[1 + 4 + 1 + 1 + langBytes.length + labelBytes.length];
 		data[0] = 0x3; // LITERAL tag
 		ByteArrayUtil.putInt(dtId, data, 1);
 		data[5] = (byte) (langBytes.length & 0xFF);
 		if (langBytes.length > 0) {
-			ByteArrayUtil.put(langBytes, data, 6);
+			ByteArrayUtil.put(langBytes, data, 7);
 		}
-		ByteArrayUtil.put(labelBytes, data, 6 + langBytes.length);
+		ByteArrayUtil.put(labelBytes, data, 7 + langBytes.length);
 		return data;
 	}
 }

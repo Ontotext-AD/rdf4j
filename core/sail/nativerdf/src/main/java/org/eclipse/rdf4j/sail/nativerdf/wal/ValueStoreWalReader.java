@@ -274,6 +274,7 @@ public final class ValueStoreWalReader implements AutoCloseable {
 		if (parsed.type == 'M') {
 			ValueStoreWalRecord r = new ValueStoreWalRecord(parsed.lsn, parsed.id, parsed.kind, parsed.lex, parsed.dt,
 					parsed.lang,
+					parsed.dir,
 					parsed.hash);
 			lastValidLsn = r.lsn();
 			return r;
@@ -323,6 +324,7 @@ public final class ValueStoreWalReader implements AutoCloseable {
 		if (parsed.type == 'M') {
 			ValueStoreWalRecord r = new ValueStoreWalRecord(parsed.lsn, parsed.id, parsed.kind, parsed.lex, parsed.dt,
 					parsed.lang,
+					parsed.dir,
 					parsed.hash);
 			lastValidLsn = r.lsn();
 			return r;
@@ -445,6 +447,8 @@ public final class ValueStoreWalReader implements AutoCloseable {
 					parsed.dt = jp.getValueAsString("");
 				} else if ("lang".equals(field)) {
 					parsed.lang = jp.getValueAsString("");
+				} else if ("dir".equals(field)) {
+					parsed.dir = jp.getValueAsString("");
 				} else if ("hash".equals(field)) {
 					parsed.hash = jp.getValueAsInt(0);
 				} else if ("crc32".equals(field)) {
@@ -479,6 +483,7 @@ public final class ValueStoreWalReader implements AutoCloseable {
 		String lex = "";
 		String dt = "";
 		String lang = "";
+		String dir = "";
 		int hash = 0;
 		long summaryCrc32 = 0L;
 	}

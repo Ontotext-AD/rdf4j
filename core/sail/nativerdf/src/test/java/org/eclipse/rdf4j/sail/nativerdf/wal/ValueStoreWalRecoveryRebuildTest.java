@@ -12,6 +12,7 @@
 package org.eclipse.rdf4j.sail.nativerdf.wal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.eclipse.rdf4j.sail.nativerdf.model.NativeValue.UNKNOWN_ID;
 
 import java.io.File;
 import java.io.IOException;
@@ -94,7 +95,7 @@ class ValueStoreWalRecoveryRebuildTest {
 					ByteArrayUtil.put(idData, bnode, 1);
 					ds.storeData(bnode);
 				} else if (rec.valueKind() == ValueStoreWalValueKind.LITERAL) {
-					ds.storeData(encodeLiteral(rec.lexical(), rec.datatype(), rec.language(), ds));
+					ds.storeData(encodeLiteral(rec.lexical(), rec.datatype(), rec.language(), rec.baseDirection(), ds));
 				}
 			}
 			ds.sync();
@@ -114,7 +115,10 @@ class ValueStoreWalRecoveryRebuildTest {
 					break;
 				case LITERAL:
 					Literal l = (rec.language() != null && !rec.language().isEmpty())
-							? VF.createLiteral(rec.lexical(), rec.language())
+							? rec.baseDirection() != null
+									? VF.createLiteral(rec.lexical(), rec.language(),
+											Literal.BaseDirection.fromString("--" + rec.baseDirection()))
+									: VF.createLiteral(rec.lexical(), rec.language())
 							: (rec.datatype() != null && !rec.datatype().isEmpty())
 									? VF.createLiteral(rec.lexical(), VF.createIRI(rec.datatype()))
 									: VF.createLiteral(rec.lexical());
@@ -122,6 +126,93 @@ class ValueStoreWalRecoveryRebuildTest {
 					break;
 				default:
 					// skip NAMESPACE here
+				}
+			}
+		}
+	}
+
+	@Test
+	void rebuildPreservesBaseDirection() throws Exception {
+		Path walDir = tempDir.resolve(ValueStoreWalConfig.DEFAULT_DIRECTORY_NAME);
+		Files.createDirectories(walDir);
+		ValueStoreWalConfig config = ValueStoreWalConfig.builder()
+				.walDirectory(walDir)
+				.storeUuid(UUID.randomUUID().toString())
+				.build();
+
+		Literal litLtr = VF.createLiteral("hello", "en", Literal.BaseDirection.LTR);
+		Literal litRtl = VF.createLiteral("مرحبا", "ar", Literal.BaseDirection.RTL);
+		Literal litNone = VF.createLiteral("plain", "en");
+
+		File valueDir = tempDir.resolve("values").toFile();
+		Files.createDirectories(valueDir.toPath());
+
+		try (ValueStoreWAL wal = ValueStoreWAL.open(config)) {
+			try (ValueStore store = new ValueStore(valueDir, false, ValueStore.VALUE_CACHE_SIZE,
+					ValueStore.VALUE_ID_CACHE_SIZE, ValueStore.NAMESPACE_CACHE_SIZE,
+					ValueStore.NAMESPACE_ID_CACHE_SIZE, wal)) {
+				store.storeValue(litLtr);
+				store.storeValue(litRtl);
+				store.storeValue(litNone);
+				var lsn = store.drainPendingWalHighWaterMark();
+				assertThat(lsn).isPresent();
+				wal.awaitDurable(lsn.getAsLong());
+			}
+		}
+
+		Map<Integer, ValueStoreWalRecord> dictionary;
+		try (ValueStoreWalReader reader = ValueStoreWalReader.open(config)) {
+			ValueStoreWalRecovery recovery = new ValueStoreWalRecovery();
+			dictionary = new LinkedHashMap<>(recovery.replay(reader));
+		}
+
+		// verify base direction is recorded in WAL
+		List<ValueStoreWalRecord> literals = dictionary.values().stream()
+				.filter(r -> r.valueKind() == ValueStoreWalValueKind.LITERAL)
+				.collect(Collectors.toList());
+
+		assertThat(literals).anySatisfy(r -> {
+			assertThat(r.language()).isEqualTo("en");
+			assertThat(r.baseDirection()).isEqualTo("ltr");
+		});
+		assertThat(literals).anySatisfy(r -> {
+			assertThat(r.language()).isEqualTo("ar");
+			assertThat(r.baseDirection()).isEqualTo("rtl");
+		});
+		assertThat(literals).anySatisfy(r -> {
+			assertThat(r.language()).isEqualTo("en");
+			assertThat(r.baseDirection()).isNullOrEmpty();
+		});
+
+		// rebuild and verify IDs match
+		File dataDir = tempDir.resolve("rebuilt").toFile();
+		Files.createDirectories(dataDir.toPath());
+		try (DataStore ds = new DataStore(dataDir, "values", false)) {
+			for (ValueStoreWalRecord rec : dictionary.values()) {
+				if (rec.valueKind() == ValueStoreWalValueKind.LITERAL) {
+					ds.storeData(encodeLiteral(rec.lexical(), rec.datatype(), rec.language(), rec.baseDirection(), ds));
+				}
+			}
+			ds.sync();
+		}
+
+		try (ValueStore vs = new ValueStore(dataDir, false, ValueStore.VALUE_CACHE_SIZE,
+				ValueStore.VALUE_ID_CACHE_SIZE, ValueStore.NAMESPACE_CACHE_SIZE,
+				ValueStore.NAMESPACE_ID_CACHE_SIZE, null)) {
+			assertThat(vs.getID(litLtr)).isNotEqualTo(UNKNOWN_ID);
+			assertThat(vs.getID(litRtl)).isNotEqualTo(UNKNOWN_ID);
+			assertThat(vs.getID(litNone)).isNotEqualTo(UNKNOWN_ID);
+
+			// verify IDs match WAL records
+			for (ValueStoreWalRecord rec : dictionary.values()) {
+				if (rec.valueKind() == ValueStoreWalValueKind.LITERAL) {
+					Literal l = rec.baseDirection() != null && !rec.baseDirection().isEmpty()
+							? VF.createLiteral(rec.lexical(), rec.language(),
+							Literal.BaseDirection.fromString("--" + rec.baseDirection()))
+							: rec.language() != null && !rec.language().isEmpty()
+							  ? VF.createLiteral(rec.lexical(), rec.language())
+							  : VF.createLiteral(rec.lexical(), VF.createIRI(rec.datatype()));
+					assertThat(vs.getID(l)).isEqualTo(rec.id());
 				}
 			}
 		}
@@ -185,23 +276,35 @@ class ValueStoreWalRecoveryRebuildTest {
 		return data;
 	}
 
-	private byte[] encodeLiteral(String label, String datatype, String language, DataStore ds) throws IOException {
+	private byte[] encodeLiteral(String label, String datatype, String language, String baseDirection, DataStore ds)
+			throws IOException {
 		int dtId = -1; // UNKNOWN_ID
 		if (datatype != null && !datatype.isEmpty()) {
 			byte[] dtBytes = encodeIri(datatype, ds);
 			int id = ds.getID(dtBytes);
 			dtId = id == -1 ? ds.storeData(dtBytes) : id;
 		}
-		byte[] langBytes = language == null ? new byte[0] : language.getBytes(StandardCharsets.UTF_8);
+
+		byte[] langBytes = language == null || language.isEmpty() ? new byte[0]
+				: language.getBytes(StandardCharsets.UTF_8);
 		byte[] labelBytes = label.getBytes(StandardCharsets.UTF_8);
-		byte[] data = new byte[1 + 4 + 1 + langBytes.length + labelBytes.length];
-		data[0] = 0x3; // LITERAL tag
+
+		// NEW FORMAT (7 byte header): [type][datatypeID(4)][langLength][direction][langData][labelData]
+		byte directionByte = switch (baseDirection.toLowerCase()) {
+		case "ltr" -> (byte) 1;
+		case "rtl" -> (byte) 2;
+		default -> (byte) 0;
+		};
+
+		byte[] data = new byte[7 + langBytes.length + labelBytes.length];
+		data[0] = 0x5; // LITERAL_WITH_DIR_VALUE - the new type marker
 		ByteArrayUtil.putInt(dtId, data, 1);
 		data[5] = (byte) (langBytes.length & 0xFF);
+		data[6] = directionByte;
 		if (langBytes.length > 0) {
-			ByteArrayUtil.put(langBytes, data, 6);
+			ByteArrayUtil.put(langBytes, data, 7);
 		}
-		ByteArrayUtil.put(labelBytes, data, 6 + langBytes.length);
+		ByteArrayUtil.put(labelBytes, data, 7 + langBytes.length);
 		return data;
 	}
 }

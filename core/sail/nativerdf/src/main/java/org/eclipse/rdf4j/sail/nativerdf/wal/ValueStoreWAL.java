@@ -182,6 +182,11 @@ public final class ValueStoreWAL implements AutoCloseable {
 		return config;
 	}
 
+	public long logMint(int id, ValueStoreWalValueKind kind, String lexical, String datatype, String language, int hash)
+			throws IOException {
+		return logMint(id, kind, lexical, datatype, language, "", hash);
+	}
+
 	/**
 	 * Append a minted value record to the WAL.
 	 *
@@ -193,11 +198,13 @@ public final class ValueStoreWAL implements AutoCloseable {
 	 * @param hash     a hash of the underlying serialized value
 	 * @return the log sequence number (LSN) assigned to the record
 	 */
-	public long logMint(int id, ValueStoreWalValueKind kind, String lexical, String datatype, String language, int hash)
+	public long logMint(int id, ValueStoreWalValueKind kind, String lexical, String datatype, String language,
+			String baseDirection, int hash)
 			throws IOException {
 		ensureOpen();
 		long lsn = nextLsn.incrementAndGet();
-		ValueStoreWalRecord record = new ValueStoreWalRecord(lsn, id, kind, lexical, datatype, language, hash);
+		ValueStoreWalRecord record = new ValueStoreWalRecord(lsn, id, kind, lexical, datatype, language, baseDirection,
+				hash);
 		enqueue(record);
 		return lsn;
 	}
@@ -895,6 +902,7 @@ public final class ValueStoreWAL implements AutoCloseable {
 				gen.writeStringProperty("lex", record.lexical() == null ? "" : record.lexical());
 				gen.writeStringProperty("dt", record.datatype() == null ? "" : record.datatype());
 				gen.writeStringProperty("lang", record.language() == null ? "" : record.language());
+				gen.writeStringProperty("dir", record.baseDirection() == null ? "" : record.baseDirection());
 				gen.writeNumberProperty("hash", record.hash());
 				gen.writeEndObject();
 			}

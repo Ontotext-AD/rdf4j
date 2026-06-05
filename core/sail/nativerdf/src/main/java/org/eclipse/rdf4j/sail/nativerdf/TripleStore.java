@@ -136,6 +136,8 @@ class TripleStore implements Closeable {
 	 */
 	static final byte TOGGLE_EXPLICIT_FLAG = (byte) 0x8; // 0000 1000
 
+	static final byte TRIPLE_TERM_OBJ_FLAG = (byte) 0x10; // 0001 0000
+
 	/*-----------*
 	 * Variables *
 	 *-----------*/
@@ -740,13 +742,16 @@ class TripleStore implements Closeable {
 	}
 
 	public boolean storeTriple(int subj, int pred, int obj, int context) throws IOException {
-		return storeTriple(subj, pred, obj, context, true);
+		return storeTriple(subj, pred, obj, context, true, false);
 	}
 
-	public boolean storeTriple(int subj, int pred, int obj, int context, boolean explicit) throws IOException {
+	public boolean storeTriple(int subj, int pred, int obj, int context, boolean explicit, boolean objIsTripleTerm) throws IOException {
 		boolean stAdded;
 
 		byte[] data = getData(subj, pred, obj, context, 0);
+		if (objIsTripleTerm) {
+			data[FLAG_IDX] |= TRIPLE_TERM_OBJ_FLAG;
+		}
 		byte[] storedData = indexes.get(0).getBTree().get(data);
 
 		if (storedData == null) {

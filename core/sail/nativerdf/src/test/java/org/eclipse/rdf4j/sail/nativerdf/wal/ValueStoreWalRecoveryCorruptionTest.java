@@ -172,7 +172,8 @@ class ValueStoreWalRecoveryCorruptionTest {
 					break;
 				}
 				case LITERAL: {
-					byte[] litBytes = encodeLiteral(record.lexical(), record.datatype(), record.language(), ds);
+					byte[] litBytes = encodeLiteral(record.lexical(), record.datatype(), record.language(),
+							record.baseDirection(), ds);
 					ds.storeData(litBytes);
 					break;
 				}
@@ -200,7 +201,8 @@ class ValueStoreWalRecoveryCorruptionTest {
 		return data;
 	}
 
-	private byte[] encodeLiteral(String label, String datatype, String language, DataStore ds) throws IOException {
+	private byte[] encodeLiteral(String label, String datatype, String language, String baseDirection, DataStore ds)
+			throws IOException {
 		int dtId = -1; // -1 denotes UNKNOWN_ID
 		if (datatype != null && !datatype.isEmpty()) {
 			byte[] dtBytes = encodeIri(datatype, ds);
@@ -209,14 +211,22 @@ class ValueStoreWalRecoveryCorruptionTest {
 		}
 		byte[] langBytes = language == null ? new byte[0] : language.getBytes(StandardCharsets.UTF_8);
 		byte[] labelBytes = label.getBytes(StandardCharsets.UTF_8);
-		byte[] data = new byte[1 + 4 + 1 + langBytes.length + labelBytes.length];
-		data[0] = 0x3;
+
+		byte directionByte = switch (baseDirection.toLowerCase()) {
+		case "ltr" -> (byte) 1;
+		case "rtl" -> (byte) 2;
+		default -> (byte) 0;
+		};
+
+		byte[] data = new byte[1 + 4 + 1 + 1 + langBytes.length + labelBytes.length];
+		data[0] = 0x5;
 		ByteArrayUtil.putInt(dtId, data, 1);
 		data[5] = (byte) (langBytes.length & 0xFF);
+		data[6] = directionByte;
 		if (langBytes.length > 0) {
-			ByteArrayUtil.put(langBytes, data, 6);
+			ByteArrayUtil.put(langBytes, data, 7);
 		}
-		ByteArrayUtil.put(labelBytes, data, 6 + langBytes.length);
+		ByteArrayUtil.put(labelBytes, data, 7 + langBytes.length);
 		return data;
 	}
 

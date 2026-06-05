@@ -14,6 +14,7 @@ package org.eclipse.rdf4j.sail.lmdb;
 
 import static org.eclipse.rdf4j.sail.lmdb.LmdbUtil.E;
 import static org.eclipse.rdf4j.sail.lmdb.LmdbUtil.openDatabase;
+import static org.eclipse.rdf4j.sail.lmdb.model.LmdbValue.UNKNOWN_ID;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.util.lmdb.LMDB.MDB_CREATE;
@@ -57,11 +58,13 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -77,6 +80,7 @@ import org.eclipse.rdf4j.model.BNode;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.TripleTerm;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.base.AbstractValueFactory;
 import org.eclipse.rdf4j.model.base.CoreDatatype;
@@ -89,6 +93,7 @@ import org.eclipse.rdf4j.sail.lmdb.model.LmdbBNode;
 import org.eclipse.rdf4j.sail.lmdb.model.LmdbIRI;
 import org.eclipse.rdf4j.sail.lmdb.model.LmdbLiteral;
 import org.eclipse.rdf4j.sail.lmdb.model.LmdbResource;
+import org.eclipse.rdf4j.sail.lmdb.model.LmdbTripleTerm;
 import org.eclipse.rdf4j.sail.lmdb.model.LmdbValue;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -193,6 +198,8 @@ class ValueStore extends AbstractValueFactory {
 	private int freeDbi;
 	// database with internal reference counts for IRIs and namespaces
 	private int refCountsDbi;
+	// maps: tripleTermID -> subjectID + predicateID + objectID
+	private int tripleTermIndexDbi;
 	private long writeTxn;
 	private final boolean forceSync;
 	private final boolean noReadahead;
@@ -364,7 +371,7 @@ class ValueStore extends AbstractValueFactory {
 			env = pp.get(0);
 		}
 
-		E(mdb_env_set_maxdbs(env, 6));
+		E(mdb_env_set_maxdbs(env, 7));
 		E(mdb_env_set_maxreaders(env, 256));
 
 		// Open environment
@@ -415,6 +422,8 @@ class ValueStore extends AbstractValueFactory {
 		// open ref_counts database
 		refCountsDbi = openDatabase(env, "ref_counts", MDB_CREATE);
 
+		tripleTermIndexDbi = openDatabase(env, "triple_term_index", MDB_CREATE);
+
 		// check if free IDs are available
 		readTransaction(env, (stack, txn) -> {
 			MDBStat stat = MDBStat.malloc(stack);
@@ -440,6 +449,7 @@ class ValueStore extends AbstractValueFactory {
 		case URI_VALUE -> ValueIds.T_URI;
 		case BNODE_VALUE -> ValueIds.T_BNODE;
 		case LITERAL_VALUE -> ValueIds.T_LITERAL;
+		case TRIPLE_VALUE -> ValueIds.T_TRIPLE;
 		case NAMESPACE_VALUE -> ValueIds.T_PTR;
 		default -> throw new IllegalArgumentException("Unexpected value type: " + valueType);
 		};
@@ -531,7 +541,7 @@ class ValueStore extends AbstractValueFactory {
 	}
 
 	void storeHash(long id, int hash) {
-		if (id == LmdbValue.UNKNOWN_ID) {
+		if (id == UNKNOWN_ID) {
 			return;
 		}
 		if (writeTxn != 0) {
@@ -549,7 +559,7 @@ class ValueStore extends AbstractValueFactory {
 	}
 
 	void clearStoredHash(long id) {
-		if (id == LmdbValue.UNKNOWN_ID) {
+		if (id == UNKNOWN_ID) {
 			return;
 		}
 		if (writeTxn != 0) {
@@ -647,6 +657,9 @@ class ValueStore extends AbstractValueFactory {
 					break;
 				case ValueIds.T_BNODE:
 					resultValue = new LmdbBNode(lazyRevision, id);
+					break;
+				case ValueIds.T_TRIPLE:
+					resultValue = new LmdbTripleTerm(lazyRevision, id);
 					break;
 				default:
 					if (ValueIds.isInlined(id)) {
@@ -889,6 +902,11 @@ class ValueStore extends AbstractValueFactory {
 
 					// update ref count if necessary
 					incrementRefCount(stack2, writeTxn, data);
+
+					// index triple term if applicable
+					if (data[0] == TRIPLE_VALUE) {
+						indexTripleTerm(stack2, writeTxn, newId, data);
+					}
 					return null;
 				});
 				return newId;
@@ -934,6 +952,10 @@ class ValueStore extends AbstractValueFactory {
 
 						// update ref count if necessary
 						incrementRefCount(stack2, writeTxn, data);
+						// index triple term if applicable
+						if (data[0] == TRIPLE_VALUE) {
+							indexTripleTerm(stack2, writeTxn, newId, data);
+						}
 						return null;
 					});
 					return newId;
@@ -1005,12 +1027,16 @@ class ValueStore extends AbstractValueFactory {
 
 					// update ref count if necessary
 					incrementRefCount(stack2, writeTxn, data);
+					// index triple term if applicable
+					if (data[0] == TRIPLE_VALUE) {
+						indexTripleTerm(stack2, writeTxn, newId, data);
+					}
 					return null;
 				});
 				return newId;
 			}
 		});
-		return id != null ? id : LmdbValue.UNKNOWN_ID;
+		return id != null ? id : UNKNOWN_ID;
 	}
 
 	<T> T readTransaction(long env, Transaction<T> transaction) throws IOException {
@@ -1077,7 +1103,7 @@ class ValueStore extends AbstractValueFactory {
 			LmdbValue lmdbValue = (LmdbValue) value;
 			if (revisionIsCurrent(lmdbValue)) {
 				long id = lmdbValue.getInternalID();
-				if (id != LmdbValue.UNKNOWN_ID) {
+				if (id != UNKNOWN_ID) {
 					return id;
 				}
 			}
@@ -1100,7 +1126,7 @@ class ValueStore extends AbstractValueFactory {
 				return id;
 			}
 
-			long id = LmdbValue.UNKNOWN_ID;
+			long id = UNKNOWN_ID;
 			if (inlineLiterals && value instanceof Literal) {
 				// inline value into id if possible
 				try {
@@ -1116,7 +1142,7 @@ class ValueStore extends AbstractValueFactory {
 				}
 			}
 
-			if (id == LmdbValue.UNKNOWN_ID) {
+			if (id == UNKNOWN_ID) {
 				// not inlined or ID not cached, search in index
 				byte[] data = value2data(value, create);
 				if (data == null && value instanceof Literal) {
@@ -1128,7 +1154,7 @@ class ValueStore extends AbstractValueFactory {
 				}
 			}
 
-			if (id != LmdbValue.UNKNOWN_ID) {
+			if (id != UNKNOWN_ID) {
 				if (isOwnValue) {
 					// Store id in value for fast access in any consecutive calls
 					((LmdbValue) value).setInternalID(id, revision);
@@ -1154,7 +1180,7 @@ class ValueStore extends AbstractValueFactory {
 			revisionLock.unlockRead(stamp);
 		}
 
-		return LmdbValue.UNKNOWN_ID;
+		return UNKNOWN_ID;
 	}
 
 	public void gcIds(Collection<Long> ids, Collection<Long> nextIds) throws IOException {
@@ -1784,7 +1810,7 @@ class ValueStore extends AbstractValueFactory {
 		case Value.Type.IRI -> uri2data((IRI) value, create);
 		case Value.Type.BNode -> bnode2data((BNode) value, create);
 		case Value.Type.Literal -> literal2data((Literal) value, create);
-		default -> throw new IllegalArgumentException("value parameter should be a URI, BNode or Literal");
+		case Value.Type.TripleTerm -> tripleTerm2data((TripleTerm) value, create);
 		};
 
 	}
@@ -1821,19 +1847,22 @@ class ValueStore extends AbstractValueFactory {
 	}
 
 	private byte[] literal2data(Literal literal, boolean create) throws IOException {
-		return literal2data(literal.getLabel(), literal.getLanguage(), literal.getDatatype(), create);
+		return literal2data(literal.getLabel(), literal.getLanguage(), literal.getBaseDirection(),
+				literal.getDatatype(), create);
 	}
 
 	private byte[] literal2legacy(Literal literal) throws IOException {
 		IRI dt = literal.getDatatype();
 		if (org.eclipse.rdf4j.model.vocabulary.XSD.STRING.equals(dt)
-				|| org.eclipse.rdf4j.model.vocabulary.RDF.LANGSTRING.equals(dt)) {
-			return literal2data(literal.getLabel(), literal.getLanguage(), null, false);
+				|| org.eclipse.rdf4j.model.vocabulary.RDF.LANGSTRING.equals(dt)
+				|| org.eclipse.rdf4j.model.vocabulary.RDF.DIRLANGSTRING.equals(dt)) {
+			return literal2data(literal.getLabel(), literal.getLanguage(), null, null, false);
 		}
-		return literal2data(literal.getLabel(), literal.getLanguage(), dt, false);
+		return literal2data(literal.getLabel(), literal.getLanguage(), null, dt, false);
 	}
 
-	private byte[] literal2data(String label, Optional<String> lang, IRI dt, boolean create)
+	private byte[] literal2data(String label, Optional<String> lang, Literal.BaseDirection baseDirection, IRI dt,
+			boolean create)
 			throws IOException {
 		// Get datatype ID
 		long datatypeID = 0L;
@@ -1841,7 +1870,7 @@ class ValueStore extends AbstractValueFactory {
 		if (dt != null) {
 			datatypeID = getId(dt, create);
 
-			if (datatypeID == LmdbValue.UNKNOWN_ID) {
+			if (datatypeID == UNKNOWN_ID) {
 				// Unknown datatype means unknown literal
 				return null;
 			}
@@ -1855,16 +1884,27 @@ class ValueStore extends AbstractValueFactory {
 			langDataLength = langData.length;
 		}
 
+		// Get base direction byte
+		byte directionByte = 0;
+		if (baseDirection != null) {
+			directionByte = switch (baseDirection) {
+			case LTR -> 1;
+			case RTL -> 2;
+			default -> 0;
+			};
+		}
+
 		// Get label in UTF-8
 		byte[] labelData = label.getBytes(StandardCharsets.UTF_8);
 
 		// Combine parts in a single byte array
 		int datatypeIDLength = Varint.calcLengthUnsigned(datatypeID);
-		byte[] literalData = new byte[2 + datatypeIDLength + langDataLength + labelData.length];
+		byte[] literalData = new byte[3 + datatypeIDLength + langDataLength + labelData.length];
 		ByteBuffer bb = ByteBuffer.wrap(literalData);
 		bb.put(LITERAL_VALUE);
 		Varint.writeUnsigned(bb, datatypeID);
 		bb.put((byte) langDataLength);
+		bb.put(directionByte);
 		if (langData != null) {
 			bb.put(langData);
 		}
@@ -1873,11 +1913,47 @@ class ValueStore extends AbstractValueFactory {
 		return literalData;
 	}
 
+	private byte[] tripleTerm2data(TripleTerm tripleTerm, boolean create)
+			throws IOException {
+		// Get IDs for the triple components
+		long subjectID = getId(tripleTerm.getSubject(), create);
+		if (subjectID == UNKNOWN_ID) {
+			return null;
+		}
+
+		long predicateID = getId(tripleTerm.getPredicate(), create);
+		if (predicateID == UNKNOWN_ID) {
+			return null;
+		}
+
+		long objectID = getId(tripleTerm.getObject(), create);
+		if (objectID == UNKNOWN_ID) {
+			return null;
+		}
+
+		// Calculate lengths
+		int subjectIDLength = Varint.calcLengthUnsigned(subjectID);
+		int predicateIDLength = Varint.calcLengthUnsigned(predicateID);
+		int objectIDLength = Varint.calcLengthUnsigned(objectID);
+
+		// Combine into byte array: marker + subject + predicate + object
+		byte[] tripleData = new byte[1 + subjectIDLength + predicateIDLength + objectIDLength];
+		ByteBuffer bb = ByteBuffer.wrap(tripleData);
+
+		bb.put(TRIPLE_VALUE);
+		Varint.writeUnsigned(bb, subjectID);
+		Varint.writeUnsigned(bb, predicateID);
+		Varint.writeUnsigned(bb, objectID);
+
+		return tripleData;
+	}
+
 	private LmdbValue data2value(long id, byte[] data, LmdbValue value) throws IOException {
 		return switch (data[0]) {
 		case URI_VALUE -> data2uri(id, data, (LmdbIRI) value);
 		case BNODE_VALUE -> data2bnode(id, data, (LmdbBNode) value);
 		case LITERAL_VALUE -> data2literal(id, data, (LmdbLiteral) value);
+		case TRIPLE_VALUE -> data2tripleTerm(id, data, (LmdbTripleTerm) value);
 		default -> throw new IllegalArgumentException("Invalid type " + data[0] + " for value with id " + id);
 		};
 	}
@@ -1921,9 +1997,16 @@ class ValueStore extends AbstractValueFactory {
 			datatype = (IRI) getValue(datatypeID);
 		}
 
+		int langLength = bb.get() & 0xFF;
+		byte directionByte = bb.get();
+		Literal.BaseDirection baseDirection = switch (directionByte) {
+		case 1 -> Literal.BaseDirection.LTR;
+		case 2 -> Literal.BaseDirection.RTL;
+		default -> Literal.BaseDirection.NONE;
+		};
+
 		// Get language tag
 		String lang = null;
-		int langLength = bb.get() & 0xFF;
 		if (langLength > 0) {
 			lang = new String(data, bb.position(), langLength, StandardCharsets.UTF_8);
 		}
@@ -1934,7 +2017,7 @@ class ValueStore extends AbstractValueFactory {
 
 		if (value == null) {
 			if (lang != null) {
-				return new LmdbLiteral(revision, label, lang, id);
+				return new LmdbLiteral(revision, label, lang, baseDirection, id);
 			} else if (datatype != null) {
 				return new LmdbLiteral(revision, label, datatype, id);
 			} else {
@@ -1944,12 +2027,44 @@ class ValueStore extends AbstractValueFactory {
 			value.setLabel(label);
 			if (lang != null) {
 				value.setLanguage(lang);
-				value.setDatatype(CoreDatatype.RDF.LANGSTRING);
+				value.setBaseDirection(baseDirection);
+				if (baseDirection != Literal.BaseDirection.NONE) {
+					value.setDatatype(CoreDatatype.RDF.DIRLANGSTRING);
+				} else {
+					value.setDatatype(CoreDatatype.RDF.LANGSTRING);
+				}
 			} else if (datatype != null) {
 				value.setDatatype(datatype);
 			} else {
 				value.setDatatype(CoreDatatype.XSD.STRING);
 			}
+			return value;
+		}
+	}
+
+	private LmdbTripleTerm data2tripleTerm(long id, byte[] data, LmdbTripleTerm value) throws IOException {
+		ByteBuffer bb = ByteBuffer.wrap(data);
+		// skip type marker
+		bb.get();
+
+		// Get subject ID
+		long subjectID = Varint.readUnsignedHeap(bb);
+		Resource subject = (Resource) getValue(subjectID);
+
+		// Get predicate ID
+		long predicateID = Varint.readUnsignedHeap(bb);
+		IRI predicate = (IRI) getValue(predicateID);
+
+		// Get object ID
+		long objectID = Varint.readUnsignedHeap(bb);
+		Value object = getValue(objectID);
+
+		if (value == null) {
+			return new LmdbTripleTerm(revision, subject, predicate, object, id);
+		} else {
+			value.setSubject(subject);
+			value.setPredicate(predicate);
+			value.setObject(object);
 			return value;
 		}
 	}
@@ -1970,7 +2085,7 @@ class ValueStore extends AbstractValueFactory {
 		System.arraycopy(namespaceBytes, 0, namespaceData, 1, namespaceBytes.length);
 
 		long id = findId(namespaceData, create);
-		if (id != LmdbValue.UNKNOWN_ID) {
+		if (id != UNKNOWN_ID) {
 			namespaceIDCache.put(namespace, id);
 		}
 
@@ -2047,6 +2162,8 @@ class ValueStore extends AbstractValueFactory {
 			return getLmdbResource((Resource) value);
 		} else if (value instanceof Literal) {
 			return getLmdbLiteral((Literal) value);
+		} else if (value instanceof TripleTerm) {
+			return getLmdbTripleTerm((TripleTerm) value);
 		} else {
 			throw new IllegalArgumentException("Unknown value type: " + value.getClass());
 		}
@@ -2116,11 +2233,132 @@ class ValueStore extends AbstractValueFactory {
 		}
 	}
 
+	/**
+	 * Creates an LmdbTriple that is equal to the supplied triple. This method returns the supplied triple itself if it
+	 * is already a LmdbTriple that has been created by this ValueStore, which prevents unnecessary object creations.
+	 *
+	 * @return A LmdbTriple for the specified triple.
+	 */
+	public LmdbTripleTerm getLmdbTripleTerm(TripleTerm t) {
+		if (isOwnValue(t)) {
+			return (LmdbTripleTerm) t;
+		}
+
+		Resource subject = (Resource) getLmdbValue(t.getSubject());
+		IRI predicate = getLmdbURI(t.getPredicate());
+		Value object = getLmdbValue(t.getObject());
+
+		return new LmdbTripleTerm(revision, subject, predicate, object);
+	}
+
 	private boolean enableGC() {
 		return this.valueEvictionInterval > 0;
 	}
 
 	public void forceEvictionOfValues() {
 		nextValueEvictionTime = 0L;
+	}
+
+	private void indexTripleTerm(MemoryStack stack, long writeTxn,
+			long tripleTermID, byte[] data) throws IOException {
+		ByteBuffer bb = ByteBuffer.wrap(data, 1, data.length - 1);
+		long subjID = Varint.readUnsignedHeap(bb);
+		long predID = Varint.readUnsignedHeap(bb);
+		long objID = Varint.readUnsignedHeap(bb);
+
+		MDBVal keyVal = MDBVal.calloc(stack);
+		MDBVal dataVal = MDBVal.calloc(stack);
+
+		int keyLen = Varint.calcLengthUnsigned(subjID)
+				+ Varint.calcLengthUnsigned(predID)
+				+ Varint.calcLengthUnsigned(objID);
+		ByteBuffer keyBuf = stack.malloc(keyLen);
+		Varint.writeUnsigned(keyBuf, subjID);
+		Varint.writeUnsigned(keyBuf, predID);
+		Varint.writeUnsigned(keyBuf, objID);
+		keyVal.mv_data(keyBuf.flip());
+
+		ByteBuffer dataBuf = stack.malloc(Varint.calcLengthUnsigned(tripleTermID));
+		Varint.writeUnsigned(dataBuf, tripleTermID);
+		dataVal.mv_data(dataBuf.flip());
+
+		E(mdb_put(writeTxn, tripleTermIndexDbi, keyVal, dataVal, 0));
+	}
+
+	public List<Long> findTripleTermIds(Resource subj, IRI pred, Value obj) throws IOException {
+		long subjID = subj != null ? getId(subj) : LmdbValue.UNKNOWN_ID;
+		long predID = pred != null ? getId(pred) : LmdbValue.UNKNOWN_ID;
+		long objID = obj != null ? getId(obj) : LmdbValue.UNKNOWN_ID;
+
+		// early exit if any specified component is unknown
+		if ((subj != null && subjID == UNKNOWN_ID)
+				|| (pred != null && predID == UNKNOWN_ID)
+				|| (obj != null && objID == UNKNOWN_ID)) {
+			return Collections.emptyList();
+		}
+
+		return readTransaction(env, (stack, txn) -> {
+			List<Long> result = new ArrayList<>();
+			long cursor = 0;
+			PointerBuffer pp = stack.mallocPointer(1);
+
+			try {
+				E(mdb_cursor_open(txn, tripleTermIndexDbi, pp));
+				cursor = pp.get(0);
+
+				MDBVal keyData = MDBVal.calloc(stack);
+				MDBVal valueData = MDBVal.calloc(stack);
+
+				// build min key from known components (use 0 for wildcards)
+				ByteBuffer minKey = stack.malloc(3 * 9);
+				if (subjID != UNKNOWN_ID) {
+					Varint.writeUnsigned(minKey, subjID);
+					if (predID != UNKNOWN_ID) {
+						Varint.writeUnsigned(minKey, predID);
+						if (objID != UNKNOWN_ID) {
+							Varint.writeUnsigned(minKey, objID);
+						}
+					}
+				}
+				// if subjID is wildcard, seek to beginning
+				if (minKey.position() == 0) {
+					Varint.writeUnsigned(minKey, 0);
+				}
+				keyData.mv_data(minKey.flip());
+
+				int rc = mdb_cursor_get(cursor, keyData, valueData, MDB_SET_RANGE);
+				while (rc == MDB_SUCCESS) {
+					ByteBuffer key = keyData.mv_data().duplicate();
+					logger.info("key remaining bytes: {}, limit: {}, position: {}",
+							key.remaining(), key.limit(), key.position());
+					if (!key.hasRemaining())
+						break;
+					long storedSubj = Varint.readUnsigned(key);
+					if (!key.hasRemaining())
+						break;
+					long storedPred = Varint.readUnsigned(key);
+					if (!key.hasRemaining())
+						break;
+					long storedObj = Varint.readUnsigned(key);
+
+					// only break early if subj is bound and we've passed it
+					if (subjID != UNKNOWN_ID && storedSubj != subjID) {
+						break;
+					}
+
+					// for pred and obj, skip non-matching but don't break
+					// since other subj values may still match
+					if ((predID == UNKNOWN_ID || storedPred == predID) &&
+							(objID == UNKNOWN_ID || storedObj == objID)) {
+						result.add(Varint.readUnsigned(valueData.mv_data().duplicate()));
+					}
+					rc = mdb_cursor_get(cursor, keyData, valueData, MDB_NEXT);
+				}
+			} finally {
+				if (cursor != 0)
+					mdb_cursor_close(cursor);
+			}
+			return result;
+		});
 	}
 }

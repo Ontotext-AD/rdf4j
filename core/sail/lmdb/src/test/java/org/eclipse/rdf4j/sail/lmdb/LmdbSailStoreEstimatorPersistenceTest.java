@@ -290,6 +290,9 @@ class LmdbSailStoreEstimatorPersistenceTest {
 		try {
 			loadNameData(repository);
 			recordLearnedFilterPassRatio(store, learnedFilter);
+
+			assertTrue(store.awaitSketchesReady(10, TimeUnit.SECONDS),
+					"Expected background rebuild to finish before snapshot persistence");
 		} finally {
 			repository.shutDown();
 		}
